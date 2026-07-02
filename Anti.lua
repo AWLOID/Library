@@ -3668,16 +3668,17 @@ local function CreateWindow(config)
             if not cam then return end
             local vp = cam.ViewportSize
             local absSize = btn.AbsoluteSize
-            local absPos = btn.AbsolutePosition
-            local maxX = math.max(0, vp.X - absSize.X)
-            local maxY = math.max(0, vp.Y - absSize.Y)
-            local cx = math.clamp(absPos.X, 0, maxX)
-            local cy = math.clamp(absPos.Y, 0, maxY)
-            local dx = cx - absPos.X
-            local dy = cy - absPos.Y
-            if dx ~= 0 or dy ~= 0 then
-                local p = btn.Position
-                btn.Position = UDim2.new(p.X.Scale, p.X.Offset + dx, p.Y.Scale, p.Y.Offset + dy)
+            local sizeX = absSize.X > 0 and absSize.X or btn.Size.X.Offset
+            local sizeY = absSize.Y > 0 and absSize.Y or btn.Size.Y.Offset
+            local p = btn.Position
+            local absX = p.X.Scale * vp.X + p.X.Offset
+            local absY = p.Y.Scale * vp.Y + p.Y.Offset
+            local maxX = math.max(0, vp.X - sizeX)
+            local maxY = math.max(0, vp.Y - sizeY)
+            local cx = math.clamp(absX, 0, maxX)
+            local cy = math.clamp(absY, 0, maxY)
+            if cx ~= absX or cy ~= absY then
+                btn.Position = UDim2.new(p.X.Scale, p.X.Offset + (cx - absX), p.Y.Scale, p.Y.Offset + (cy - absY))
             end
         end
         handle.Clamp = ClampButton
@@ -3718,6 +3719,7 @@ local function CreateWindow(config)
 
         local activeInput = nil
         local moved = false
+        local finished = false
         local startInputPos, startBtnPos
 
         local function DoActivate()
@@ -3733,13 +3735,10 @@ local function CreateWindow(config)
             end
         end
 
-        local function UpdateDrag(input)
+        local function UpdateDrag(pos)
             if activeInput == nil then return end
-            local pos = input.Position
             local delta = pos - startInputPos
-            if not moved and delta.Magnitude > threshold then
-                moved = true
-            end
+            if not moved and delta.Magnitude > threshold then moved = true end
             if moved then
                 btn.Position = UDim2.new(
                     startBtnPos.X.Scale,
@@ -3751,15 +3750,24 @@ local function CreateWindow(config)
             end
         end
 
-        local function EndDrag(input)
-            if activeInput == nil then return end
-            if input ~= activeInput then return end
-            local wasMoved = moved
+        local function EndGesture()
+            if activeInput == nil or finished then return end
+            finished = true
+            local didMove = moved
             activeInput = nil
-            moved = false
-            if not wasMoved then
+            if not didMove then
                 DoActivate()
             end
+        end
+
+        local function IsSameInput(input)
+            if input == activeInput then return true end
+            if activeInput ~= nil
+                and activeInput.UserInputType == Enum.UserInputType.MouseButton1
+                and input.UserInputType == Enum.UserInputType.MouseMovement then
+                return true
+            end
+            return false
         end
 
         btn.InputBegan:Connect(function(input)
@@ -3768,35 +3776,51 @@ local function CreateWindow(config)
                 or input.UserInputType == Enum.UserInputType.Touch then
                 activeInput = input
                 moved = false
+                finished = false
                 startInputPos = input.Position
                 startBtnPos = btn.Position
-            end
-        end)
 
-        btn.InputChanged:Connect(function(input)
-            if activeInput == nil then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement
-                or input.UserInputType == Enum.UserInputType.Touch then
-                UpdateDrag(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    local conn
+                    conn = input.Changed:Connect(function(prop)
+                        if input.UserInputType == Enum.UserInputType.Touch and prop == "Position" then
+                            if input == activeInput then UpdateDrag(input.Position) end
+                        end
+                        if input.UserInputState == Enum.UserInputState.End then
+                            if conn then conn:Disconnect() end
+                            if input == activeInput then EndGesture() end
+                        end
+                    end)
+                end
             end
         end)
 
         UserInputService.InputChanged:Connect(function(input)
             if activeInput == nil then return end
-            if input.UserInputType == Enum.UserInputType.Touch and input == activeInput then
-                UpdateDrag(input)
-            elseif input.UserInputType == Enum.UserInputType.MouseMovement
-                and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
-                UpdateDrag(input)
+            if IsSameInput(input) then
+                UpdateDrag(input.Position)
             end
         end)
 
         btn.InputEnded:Connect(function(input)
-            EndDrag(input)
+            if activeInput == nil then return end
+            if input == activeInput
+                or (activeInput.UserInputType == Enum.UserInputType.MouseButton1
+                    and input.UserInputType == Enum.UserInputType.MouseButton1) then
+                EndGesture()
+            end
         end)
 
         UserInputService.InputEnded:Connect(function(input)
-            EndDrag(input)
+            if activeInput == nil then return end
+            if input == activeInput
+                or (activeInput.UserInputType == Enum.UserInputType.MouseButton1
+                    and input.UserInputType == Enum.UserInputType.MouseButton1)
+                or (activeInput.UserInputType == Enum.UserInputType.Touch
+                    and input.UserInputType == Enum.UserInputType.Touch
+                    and input == activeInput) then
+                EndGesture()
+            end
         end)
 
         function handle:SetSize(px)
