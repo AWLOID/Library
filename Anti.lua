@@ -48,7 +48,8 @@ local function RoundTo(value, step)
     if step <= 0 then
         return value
     end
-    return math.floor(value / step + 0.5) * step
+    local v = math.floor(value / step + 0.5) * step
+    return math.floor(v * 1e6 + 0.5) / 1e6
 end
 
 local function FormatKeycodeName(keycode)
@@ -185,7 +186,17 @@ local function RegisterOverlay(holder, trigger, isOpenGetter, closeFn)
     })
 end
 
+local function PruneOverlays()
+    for i = #OverlayRegistry, 1, -1 do
+        local entry = OverlayRegistry[i]
+        if not entry.Holder or not entry.Holder.Parent then
+            table.remove(OverlayRegistry, i)
+        end
+    end
+end
+
 local function CloseAllOverlaysExcept(exceptHolder)
+    PruneOverlays()
     for _, entry in ipairs(OverlayRegistry) do
         if entry.Holder ~= exceptHolder and entry.IsOpen() then
             entry.Close()
@@ -201,6 +212,7 @@ UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
         return
     end
+    PruneOverlays()
     local pos = input.Position
     for _, entry in ipairs(OverlayRegistry) do
         if entry.IsOpen() then
@@ -478,7 +490,8 @@ local function CreateElementFactory(context)
         local name = config.Name or "Slider"
         local min = config.Min or 0
         local max = config.Max or 100
-        local default = config.Default or min
+        if max < min then min, max = max, min end
+        local default = math.clamp(config.Default or min, min, max)
         local step = config.Step or ((max - min <= 1) and 0.01 or 1)
         local callback = config.Callback
 
@@ -508,7 +521,7 @@ local function CreateElementFactory(context)
             Parent = row,
         })
 
-        local fillRatio = Clamp01((default - min) / (max - min))
+        local fillRatio = (max > min) and Clamp01((default - min) / (max - min)) or 0
 
         local fill = NewInstance("Frame", {
             Size = UDim2.new(fillRatio, 0, 1, 0),
@@ -534,8 +547,7 @@ local function CreateElementFactory(context)
         local currentValue = default
 
         local function ApplyValue(value, fromUser)
-            value = math.clamp(value, min, max)
-            value = RoundTo(value, step)
+            value = math.clamp(RoundTo(math.clamp(value, min, max), step), min, max)
             currentValue = value
             local ratio = (max > min) and Clamp01((value - min) / (max - min)) or 0
             fill.Size = UDim2.new(ratio, 0, 1, 0)
@@ -622,7 +634,8 @@ local function CreateElementFactory(context)
         local name = config.Name or "Progress"
         local min = config.Min or 0
         local max = config.Max or 100
-        local default = config.Default or min
+        if max < min then min, max = max, min end
+        local default = math.clamp(config.Default or min, min, max)
 
         local row = NewInstance("Frame", {
             Name = "ProgressBar_" .. name,
@@ -650,7 +663,7 @@ local function CreateElementFactory(context)
             Parent = row,
         })
 
-        local ratio = Clamp01((default - min) / (max - min))
+        local ratio = (max > min) and Clamp01((default - min) / (max - min)) or 0
 
         local fill = NewInstance("Frame", {
             Size = UDim2.new(ratio, 0, 1, 0),
@@ -748,7 +761,7 @@ local function CreateElementFactory(context)
             TextSize = 13,
             TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = "  " .. tostring(default),
+            Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
@@ -1007,8 +1020,9 @@ local function CreateElementFactory(context)
             Name = "MultiDropdownOptionsHolder_" .. name,
             BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(0, #options * 24),
+            Size = UDim2.fromOffset(0, math.min(#options, 8) * 24),
             Visible = false,
+            ClipsDescendants = true,
             ZIndex = 200,
             Parent = ScreenGui,
         })
@@ -1019,9 +1033,24 @@ local function CreateElementFactory(context)
             Parent = optionsHolder,
         })
 
+        local optionsScroll = NewInstance("ScrollingFrame", {
+            Name = "Scroll",
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollingDirection = Enum.ScrollingDirection.Y,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120),
+            ScrollBarImageTransparency = 0.4,
+            ZIndex = optionsHolder.ZIndex + 1,
+            Parent = optionsHolder,
+        })
+
         NewInstance("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
-            Parent = optionsHolder,
+            Parent = optionsScroll,
         })
 
         local isOpen = false
@@ -1052,8 +1081,8 @@ local function CreateElementFactory(context)
         end
 
         local function RebuildOptions()
-            for _, child in ipairs(optionsHolder:GetChildren()) do
-                if child:IsA("Frame") and child.Name ~= "Layout" then
+            for _, child in ipairs(optionsScroll:GetChildren()) do
+                if child:IsA("Frame") then
                     child:Destroy()
                 end
             end
@@ -1064,8 +1093,8 @@ local function CreateElementFactory(context)
                     BackgroundColor3 = Color3.fromRGB(16, 16, 16),
                     BorderSizePixel = 0,
                     Size = UDim2.new(1, 0, 0, 24),
-                    ZIndex = optionsHolder.ZIndex + 1,
-                    Parent = optionsHolder,
+                    ZIndex = optionsScroll.ZIndex + 1,
+                    Parent = optionsScroll,
                 })
 
                 local optBtn = NewInstance("TextButton", {
@@ -1117,9 +1146,9 @@ local function CreateElementFactory(context)
             CloseAllOverlaysExcept(optionsHolder)
             local boxPos = box.AbsolutePosition
             local boxSize = box.AbsoluteSize
-            optionsHolder.Size = UDim2.fromOffset(boxSize.X, #options * 24)
-            local panelSize = optionsHolder.AbsoluteSize
-            local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, panelSize.X, panelSize.Y)
+            local panelHeight = math.max(math.min(#options, 8), 1) * 24
+            optionsHolder.Size = UDim2.fromOffset(boxSize.X, panelHeight)
+            local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, boxSize.X, panelHeight)
             optionsHolder.Position = UDim2.fromOffset(x, y)
             optionsHolder.Visible = true
             isOpen = true
@@ -1572,6 +1601,11 @@ local function CreateElementFactory(context)
         local listening = false
 
         box.MouseButton1Click:Connect(function()
+            if listening then
+                listening = false
+                box.Text = FormatKeycodeName(currentKey)
+                return
+            end
             listening = true
             box.Text = "..."
         end)
@@ -1581,6 +1615,11 @@ local function CreateElementFactory(context)
                 return
             end
             if input.UserInputType == Enum.UserInputType.Keyboard then
+                if input.KeyCode == Enum.KeyCode.Escape then
+                    listening = false
+                    box.Text = FormatKeycodeName(currentKey)
+                    return
+                end
                 currentKey = input.KeyCode
                 box.Text = FormatKeycodeName(currentKey)
                 listening = false
@@ -2051,7 +2090,8 @@ local function CreateElementFactory(context)
         local min = config.Min or 0
         local max = config.Max or 100
         local step = config.Step or 1
-        local default = config.Default or min
+        if max < min then min, max = max, min end
+        local default = math.clamp(config.Default or min, min, max)
         local callback = config.Callback
 
         local row = NewInstance("Frame", {
@@ -2164,8 +2204,9 @@ local function CreateElementFactory(context)
         local name = config.Name or "Range"
         local min = config.Min or 0
         local max = config.Max or 100
-        local defaultLow = config.DefaultLow or min
-        local defaultHigh = config.DefaultHigh or max
+        if max < min then min, max = max, min end
+        local defaultLow = math.clamp(config.DefaultLow or min, min, max)
+        local defaultHigh = math.clamp(config.DefaultHigh or max, min, max)
         local step = config.Step or 1
         local callback = config.Callback
 
@@ -2195,8 +2236,8 @@ local function CreateElementFactory(context)
             Parent = row,
         })
 
-        local lowRatio = Clamp01((defaultLow - min) / (max - min))
-        local highRatio = Clamp01((defaultHigh - min) / (max - min))
+        local lowRatio = (max > min) and Clamp01((defaultLow - min) / (max - min)) or 0
+        local highRatio = (max > min) and Clamp01((defaultHigh - min) / (max - min)) or 0
 
         local fill = NewInstance("Frame", {
             Position = UDim2.new(lowRatio, 0, 0, 0),
@@ -2234,8 +2275,8 @@ local function CreateElementFactory(context)
         local currentHigh = defaultHigh
 
         local function ApplyRange(fromUser)
-            local lr = Clamp01((currentLow - min) / (max - min))
-            local hr = Clamp01((currentHigh - min) / (max - min))
+            local lr = (max > min) and Clamp01((currentLow - min) / (max - min)) or 0
+            local hr = (max > min) and Clamp01((currentHigh - min) / (max - min)) or 0
             fill.Position = UDim2.new(lr, 0, 0, 0)
             fill.Size = UDim2.new(hr - lr, 0, 1, 0)
             lowKnob.Position = UDim2.new(lr, 0, 0.5, 0)
@@ -2250,7 +2291,7 @@ local function CreateElementFactory(context)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
             local ratio = Clamp01((xPos - trackPos) / trackSize)
-            local value = RoundTo(min + (max - min) * ratio, step)
+            local value = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
             currentLow = math.min(value, currentHigh)
             ApplyRange(true)
         end
@@ -2259,7 +2300,7 @@ local function CreateElementFactory(context)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
             local ratio = Clamp01((xPos - trackPos) / trackSize)
-            local value = RoundTo(min + (max - min) * ratio, step)
+            local value = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
             currentHigh = math.max(value, currentLow)
             ApplyRange(true)
         end
@@ -2280,6 +2321,7 @@ local function CreateElementFactory(context)
         function api.Set(low, high)
             currentLow = math.clamp(low, min, max)
             currentHigh = math.clamp(high, min, max)
+            if currentLow > currentHigh then currentLow, currentHigh = currentHigh, currentLow end
             ApplyRange(false)
         end
         function api.Get()
@@ -2411,7 +2453,8 @@ local function CreateElementFactory(context)
         local toggleDefault = config.ToggleDefault or false
         local min = config.Min or 0
         local max = config.Max or 100
-        local sliderDefault = config.SliderDefault or min
+        if max < min then min, max = max, min end
+        local sliderDefault = math.clamp(config.SliderDefault or min, min, max)
         local step = config.Step or 1
         local toggleCallback = config.ToggleCallback
         local sliderCallback = config.SliderCallback
@@ -2461,7 +2504,7 @@ local function CreateElementFactory(context)
             Parent = row,
         })
 
-        local fillRatio = Clamp01((sliderDefault - min) / (max - min))
+        local fillRatio = (max > min) and Clamp01((sliderDefault - min) / (max - min)) or 0
 
         local sliderFill = NewInstance("Frame", {
             Size = UDim2.new(fillRatio, 0, 1, 0),
@@ -2500,7 +2543,7 @@ local function CreateElementFactory(context)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
             local ratio = Clamp01((xPos - trackPos) / trackSize)
-            sliderValue = RoundTo(min + (max - min) * ratio, step)
+            sliderValue = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
             sliderFill.Size = UDim2.new(ratio, 0, 1, 0)
             knob.Position = UDim2.new(ratio, 0, 0.5, 0)
             label.Text = name .. ": " .. tostring(sliderValue)
@@ -2560,7 +2603,7 @@ local function CreateElementFactory(context)
             TextSize = 13,
             TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = "  " .. tostring(default),
+            Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
@@ -2694,10 +2737,9 @@ local function CreateElementFactory(context)
             CloseAllOverlaysExcept(optionsHolder)
             local boxPos = box.AbsolutePosition
             local boxSize = box.AbsoluteSize
-            local panelSize = optionsHolder.AbsoluteSize
-            local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, panelSize.X, panelSize.Y)
-            optionsHolder.Position = UDim2.fromOffset(x, y)
             optionsHolder.Size = UDim2.fromOffset(boxSize.X, panelHeight)
+            local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, boxSize.X, panelHeight)
+            optionsHolder.Position = UDim2.fromOffset(x, y)
             optionsHolder.Visible = true
             isOpen = true
             searchBox.Text = ""
