@@ -119,7 +119,12 @@ local function MakeDraggable(handle, target, onDragStart)
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if activeInput == nil or input ~= activeInput then
+        if activeInput == nil then
+            return
+        end
+        local isMouseMove = input.UserInputType == Enum.UserInputType.MouseMovement
+            and activeInput.UserInputType == Enum.UserInputType.MouseButton1
+        if input ~= activeInput and not isMouseMove then
             return
         end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
@@ -147,11 +152,23 @@ local function MakeValueDragger(hitTargets, onInputDown, onInputMove)
                 activeInput = input
                 onInputDown(input)
 
+                local connChanged
                 local connEnded
-                connEnded = UserInputService.InputEnded:Connect(function(endedInput)
-                    if endedInput == activeInput then
+                local function FinishDrag()
+                    if connChanged then connChanged:Disconnect() end
+                    if connEnded then connEnded:Disconnect() end
+                    if activeInput == input then
                         activeInput = nil
-                        if connEnded then connEnded:Disconnect() end
+                    end
+                end
+                connChanged = input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        FinishDrag()
+                    end
+                end)
+                connEnded = UserInputService.InputEnded:Connect(function(endedInput)
+                    if endedInput == input then
+                        FinishDrag()
                     end
                 end)
             end
@@ -174,6 +191,8 @@ local function MakeValueDragger(hitTargets, onInputDown, onInputMove)
         onInputMove(input)
     end)
 end
+
+local ActiveKeybindCancel = nil
 
 local OverlayRegistry = {}
 
@@ -561,6 +580,9 @@ local function CreateElementFactory(context)
         local function UpdateFromX(xPos)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
+            if trackSize <= 0 then
+                return
+            end
             local ratio = Clamp01((xPos - trackPos) / trackSize)
             ApplyValue(min + (max - min) * ratio, true)
         end
@@ -928,6 +950,10 @@ local function CreateElementFactory(context)
 
         RegisterOverlay(optionsHolder, box, function() return isOpen end, Close)
 
+        row.Destroying:Connect(function()
+            optionsHolder:Destroy()
+        end)
+
         local api = {}
         function api.Set(value)
             currentValue = value
@@ -1163,6 +1189,10 @@ local function CreateElementFactory(context)
         end)
 
         RegisterOverlay(optionsHolder, box, function() return isOpen end, Close)
+
+        row.Destroying:Connect(function()
+            optionsHolder:Destroy()
+        end)
 
         local api = {}
         function api.Get()
@@ -1471,6 +1501,10 @@ local function CreateElementFactory(context)
 
         RegisterOverlay(panel, swatch, function() return isOpen end, Close)
 
+        row.Destroying:Connect(function()
+            panel:Destroy()
+        end)
+
         local api = {}
         function api.Set(color3)
             h, s, v = Color3.toHSV(color3)
@@ -1603,26 +1637,39 @@ local function CreateElementFactory(context)
         box.MouseButton1Click:Connect(function()
             if listening then
                 listening = false
+                ActiveKeybindCancel = nil
                 box.Text = FormatKeycodeName(currentKey)
                 return
             end
+            if ActiveKeybindCancel then
+                ActiveKeybindCancel()
+            end
             listening = true
+            ActiveKeybindCancel = function()
+                listening = false
+                box.Text = FormatKeycodeName(currentKey)
+            end
             box.Text = "..."
         end)
 
-        UserInputService.InputBegan:Connect(function(input)
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if not listening then
+                return
+            end
+            if gameProcessed then
                 return
             end
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 if input.KeyCode == Enum.KeyCode.Escape then
                     listening = false
+                    ActiveKeybindCancel = nil
                     box.Text = FormatKeycodeName(currentKey)
                     return
                 end
                 currentKey = input.KeyCode
                 box.Text = FormatKeycodeName(currentKey)
                 listening = false
+                ActiveKeybindCancel = nil
                 if callback then
                     callback(currentKey)
                 end
@@ -1641,13 +1688,22 @@ local function CreateElementFactory(context)
     end
 
     function Factory.Divider(parent)
-        return NewInstance("Frame", {
+        local row = NewInstance("Frame", {
             Name = "Divider",
-            Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
-            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 9),
             Parent = parent,
         })
+        NewInstance("Frame", {
+            Name = "Line",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = Color3.fromRGB(55, 55, 55),
+            BorderSizePixel = 0,
+            Parent = row,
+        })
+        return row
     end
 
     function Factory.Spacer(parent, height)
@@ -2290,6 +2346,9 @@ local function CreateElementFactory(context)
         local function UpdateLow(xPos)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
+            if trackSize <= 0 then
+                return
+            end
             local ratio = Clamp01((xPos - trackPos) / trackSize)
             local value = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
             currentLow = math.min(value, currentHigh)
@@ -2299,6 +2358,9 @@ local function CreateElementFactory(context)
         local function UpdateHigh(xPos)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
+            if trackSize <= 0 then
+                return
+            end
             local ratio = Clamp01((xPos - trackPos) / trackSize)
             local value = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
             currentHigh = math.max(value, currentLow)
@@ -2306,12 +2368,16 @@ local function CreateElementFactory(context)
         end
 
         MakeValueDragger({ lowKnob }, function(input)
+            lowKnob.ZIndex = track.ZIndex + 2
+            highKnob.ZIndex = track.ZIndex + 1
             UpdateLow(input.Position.X)
         end, function(input)
             UpdateLow(input.Position.X)
         end)
 
         MakeValueDragger({ highKnob }, function(input)
+            highKnob.ZIndex = track.ZIndex + 2
+            lowKnob.ZIndex = track.ZIndex + 1
             UpdateHigh(input.Position.X)
         end, function(input)
             UpdateHigh(input.Position.X)
@@ -2413,7 +2479,7 @@ local function CreateElementFactory(context)
             Parent = pill,
         })
 
-        NewInstance("UIStroke", {
+        local pillStroke = NewInstance("UIStroke", {
             Color = color,
             Thickness = 1,
             Parent = pill,
@@ -2442,6 +2508,7 @@ local function CreateElementFactory(context)
             if newColor then
                 pill.BackgroundColor3 = newColor
                 label.TextColor3 = newColor
+                pillStroke.Color = newColor
             end
         end
         return api
@@ -2542,10 +2609,14 @@ local function CreateElementFactory(context)
         local function UpdateFromX(xPos)
             local trackPos = track.AbsolutePosition.X
             local trackSize = track.AbsoluteSize.X
+            if trackSize <= 0 then
+                return
+            end
             local ratio = Clamp01((xPos - trackPos) / trackSize)
             sliderValue = math.clamp(RoundTo(min + (max - min) * ratio, step), min, max)
-            sliderFill.Size = UDim2.new(ratio, 0, 1, 0)
-            knob.Position = UDim2.new(ratio, 0, 0.5, 0)
+            local snappedRatio = (max > min) and Clamp01((sliderValue - min) / (max - min)) or 0
+            sliderFill.Size = UDim2.new(snappedRatio, 0, 1, 0)
+            knob.Position = UDim2.new(snappedRatio, 0, 0.5, 0)
             label.Text = name .. ": " .. tostring(sliderValue)
             if sliderCallback then
                 sliderCallback(sliderValue)
@@ -2629,7 +2700,7 @@ local function CreateElementFactory(context)
             arrow.TextColor3 = color
         end)
 
-        local panelHeight = math.min(#options, 5) * 24 + 26
+        local panelHeight = math.min(#options, 5) * 24 + 28
 
         local optionsHolder = NewInstance("Frame", {
             Name = "SearchableDropdownHolder_" .. name,
@@ -2754,6 +2825,10 @@ local function CreateElementFactory(context)
         end)
 
         RegisterOverlay(optionsHolder, box, function() return isOpen end, Close)
+
+        row.Destroying:Connect(function()
+            optionsHolder:Destroy()
+        end)
 
         local api = {}
         function api.Set(value)
@@ -3390,14 +3465,36 @@ local function CreateWindow(config)
         Parent = contentInner,
     })
 
-    local tabsSidebarHolder = NewInstance("Frame", {
+    local tabsSidebarHolder = NewInstance("ScrollingFrame", {
         Name = "TabsHolder",
         BackgroundTransparency = 1,
+        BorderSizePixel = 0,
         Position = UDim2.fromOffset(8, 84),
         Size = UDim2.new(1, -16, 1, -92),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ScrollBarThickness = 0,
+        ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
+        ClipsDescendants = true,
         ZIndex = sidebarInner.ZIndex + 1,
         Parent = sidebarInner,
     })
+
+    local tabsListLayout = NewInstance("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = tabsSidebarHolder,
+    })
+
+    NewInstance("UIPadding", {
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
+        Parent = tabsSidebarHolder,
+    })
+
+    tabsListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        tabsSidebarHolder.CanvasSize = UDim2.new(0, 0, 0, tabsListLayout.AbsoluteContentSize.Y + 4)
+    end)
 
     local Factory = CreateElementFactory({
         ScreenGui = ScreenGui,
@@ -3436,6 +3533,9 @@ local function CreateWindow(config)
     end)
 
     function Window:AddTab(tabName)
+        if tabs[tabName] then
+            return tabs[tabName]
+        end
         local isFirst = (next(tabs) == nil)
         local tab = CreateTab({
             Factory = Factory,
@@ -3450,8 +3550,8 @@ local function CreateWindow(config)
 
         local btn = NewInstance("TextButton", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(8, index * 32),
-            Size = UDim2.new(1, -16, 0, 26),
+            Size = UDim2.new(1, 0, 0, 26),
+            LayoutOrder = index,
             Font = Enum.Font.GothamMedium,
             TextSize = 15,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -3491,7 +3591,12 @@ local function CreateWindow(config)
             CloseAllOverlays()
         end
 
-        local collapsedSize = UDim2.fromOffset(windowSize.X.Offset * 0.85, windowSize.Y.Offset * 0.85)
+        local collapsedSize = UDim2.new(
+            windowSize.X.Scale * 0.85,
+            windowSize.X.Offset * 0.85,
+            windowSize.Y.Scale * 0.85,
+            windowSize.Y.Offset * 0.85
+        )
 
         if open then
             mainWindow.Visible = true
@@ -3588,18 +3693,35 @@ local function CreateWindow(config)
                 moved = false
                 openButton:SetAttribute("WasDragged", false)
 
+                local connChanged
                 local connEnded
-                connEnded = UserInputService.InputEnded:Connect(function(endedInput)
-                    if endedInput == activeInput then
+                local function FinishDrag()
+                    if connChanged then connChanged:Disconnect() end
+                    if connEnded then connEnded:Disconnect() end
+                    if activeInput == input then
                         activeInput = nil
-                        if connEnded then connEnded:Disconnect() end
+                    end
+                end
+                connChanged = input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        FinishDrag()
+                    end
+                end)
+                connEnded = UserInputService.InputEnded:Connect(function(endedInput)
+                    if endedInput == input then
+                        FinishDrag()
                     end
                 end)
             end
         end)
 
         UserInputService.InputChanged:Connect(function(input)
-            if activeInput == nil or input ~= activeInput then
+            if activeInput == nil then
+                return
+            end
+            local isMouseMove = input.UserInputType == Enum.UserInputType.MouseMovement
+                and activeInput.UserInputType == Enum.UserInputType.MouseButton1
+            if input ~= activeInput and not isMouseMove then
                 return
             end
             if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
@@ -3617,6 +3739,18 @@ local function CreateWindow(config)
                     startTargetPos.Y.Scale,
                     startTargetPos.Y.Offset + delta.Y
                 )
+                local cam = workspace.CurrentCamera
+                if cam then
+                    local vp = cam.ViewportSize
+                    local absPos = openButton.AbsolutePosition
+                    local absSize = openButton.AbsoluteSize
+                    local cx = math.clamp(absPos.X, 0, math.max(0, vp.X - absSize.X))
+                    local cy = math.clamp(absPos.Y, 0, math.max(0, vp.Y - absSize.Y))
+                    if cx ~= absPos.X or cy ~= absPos.Y then
+                        local p = openButton.Position
+                        openButton.Position = UDim2.new(p.X.Scale, p.X.Offset + (cx - absPos.X), p.Y.Scale, p.Y.Offset + (cy - absPos.Y))
+                    end
+                end
             end
         end)
     end
@@ -3641,6 +3775,8 @@ local function CreateWindow(config)
         Parent = notifyHolder,
     })
 
+    local floatingGuis = {}
+
     local function CreateFloatingButton(cfg, forceToggle)
         cfg = cfg or {}
         local isToggle = forceToggle == true or cfg.Toggle == true
@@ -3661,6 +3797,7 @@ local function CreateWindow(config)
         })
         ProtectGui(floatingGui)
         floatingGui.Parent = GuiParent
+        table.insert(floatingGuis, floatingGui)
 
         local btn = NewInstance("TextButton", {
             Name = "FloatingButton",
@@ -3880,10 +4017,16 @@ local function CreateWindow(config)
             btn.Text = text or ""
         end
 
-        function handle:SetActive(value)
+        function handle:SetActive(value, silent)
             if not isToggle then return end
-            state = value == true
+            local newState = value == true
+            local changed = newState ~= state
+            state = newState
             applyVisual()
+            if changed and not silent and cfg.Callback then
+                local s = state
+                task.spawn(function() cfg.Callback(s) end)
+            end
         end
 
         function handle:Toggle()
@@ -4020,6 +4163,15 @@ local function CreateWindow(config)
     end
 
     function Window:Destroy()
+        for _, gui in ipairs(floatingGuis) do
+            pcall(function()
+                gui:Destroy()
+            end)
+        end
+        table.clear(floatingGuis)
+        pcall(function()
+            Accent._bindable:Destroy()
+        end)
         ScreenGui:Destroy()
     end
 
