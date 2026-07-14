@@ -625,12 +625,12 @@ local function CreateElementFactory(context)
         local name = config.Name or "Button"
         local callback = config.Callback
 
-        local baseColor = Color3.fromRGB(24, 26, 32)
-        local pressedColor = Color3.fromRGB(30, 32, 39)
+        local baseColor = Color3.fromRGB(44, 44, 47)
+        local pressedColor = Color3.fromRGB(52, 52, 55)
 
         local btn = NewInstance("TextButton", {
             Name = "Button_" .. name,
-            Size = UDim2.new(1, 0, 0, 32),
+            Size = UDim2.new(1, 0, 0, 38),
             BackgroundColor3 = baseColor,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -641,10 +641,10 @@ local function CreateElementFactory(context)
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = btn })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = btn })
 
         local stroke = NewInstance("UIStroke", {
-            Color = Color3.fromRGB(53, 57, 70),
+            Color = Color3.fromRGB(72, 72, 77),
             Thickness = 1,
             Transparency = 0.05,
             Parent = btn,
@@ -3021,17 +3021,17 @@ local function CreateElementFactory(context)
 
         local container = NewInstance("Frame", {
             Name = "Group_" .. name,
-            BackgroundColor3 = Color3.fromRGB(18, 20, 26),
+            BackgroundColor3 = Color3.fromRGB(36, 36, 38),
             BorderSizePixel = 0,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 10), Parent = container })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = container })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(44, 47, 58),
+            Color = Color3.fromRGB(58, 58, 62),
             Thickness = 1,
             Transparency = 0.08,
             Parent = container,
@@ -3046,7 +3046,7 @@ local function CreateElementFactory(context)
             Name = "Header",
             BackgroundTransparency = 1,
             AutoButtonColor = false,
-            Size = UDim2.new(1, 0, 0, 34),
+            Size = UDim2.new(1, 0, 0, 40),
             Text = "",
             Parent = container,
         })
@@ -3085,14 +3085,14 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIPadding", {
-            PaddingLeft = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 10),
-            PaddingBottom = UDim.new(0, 10),
+            PaddingLeft = UDim.new(0, 14),
+            PaddingRight = UDim.new(0, 14),
+            PaddingBottom = UDim.new(0, 14),
             Parent = body,
         })
 
         local bodyLayout = NewInstance("UIListLayout", {
-            Padding = UDim.new(0, 10),
+            Padding = UDim.new(0, 12),
             SortOrder = Enum.SortOrder.LayoutOrder,
             Parent = body,
         })
@@ -3544,10 +3544,10 @@ local function CreateWindow(config)
     config = config or {}
 
     local windowName = config.Name or "Lurk"
-    local windowSize = config.Size or UDim2.fromOffset(470, 330)
-    local sidebarWidth = config.SidebarWidth or 118
+    local windowSize = config.Size or UDim2.fromOffset(560, 400)
+    local sidebarWidth = config.SidebarWidth or 150
     local openButtonText = config.OpenButtonText or string.sub(windowName, 1, 1)
-    local startColor = config.AccentColor or Color3.fromRGB(126, 110, 255)
+    local startColor = config.AccentColor or Color3.fromRGB(10, 132, 255)
 
     local MAIN_DISPLAY_ORDER = config.DisplayOrder or 2147482000
     local FLOATING_DISPLAY_ORDER = config.FloatingDisplayOrder or (MAIN_DISPLAY_ORDER - 80)
@@ -3555,14 +3555,14 @@ local function CreateWindow(config)
 
     local theme = {
         backdrop = Color3.fromRGB(0, 0, 0),
-        surface = Color3.fromRGB(14, 15, 19),
-        surface2 = Color3.fromRGB(19, 20, 25),
-        surface3 = Color3.fromRGB(24, 26, 32),
-        border = Color3.fromRGB(46, 49, 60),
-        borderStrong = Color3.fromRGB(60, 64, 78),
-        text = Color3.fromRGB(239, 241, 245),
-        muted = Color3.fromRGB(152, 157, 171),
-        soft = Color3.fromRGB(118, 123, 138),
+        surface = Color3.fromRGB(28, 28, 30),
+        surface2 = Color3.fromRGB(36, 36, 38),
+        surface3 = Color3.fromRGB(44, 44, 47),
+        border = Color3.fromRGB(58, 58, 62),
+        borderStrong = Color3.fromRGB(72, 72, 77),
+        text = Color3.fromRGB(245, 245, 247),
+        muted = Color3.fromRGB(161, 161, 166),
+        soft = Color3.fromRGB(128, 128, 133),
         shadow = Color3.fromRGB(0, 0, 0),
     }
 
@@ -3646,7 +3646,7 @@ local function CreateWindow(config)
         ZIndex = 3,
         Parent = ScreenGui,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = mainWindow })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = mainWindow })
     NewInstance("UIStroke", {
         Color = theme.border,
         Thickness = 1,
@@ -3694,12 +3694,12 @@ local function CreateWindow(config)
         Name = "Sidebar",
         BackgroundColor3 = theme.surface2,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(12, 48),
-        Size = UDim2.new(0, sidebarWidth, 1, -60),
+        Position = UDim2.fromOffset(14, 54),
+        Size = UDim2.new(0, sidebarWidth, 1, -68),
         ZIndex = inner.ZIndex + 1,
         Parent = inner,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = sidebar })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 16), Parent = sidebar })
     NewInstance("UIStroke", {
         Color = theme.border,
         Thickness = 1,
@@ -3772,12 +3772,12 @@ local function CreateWindow(config)
         Name = "ContentArea",
         BackgroundColor3 = theme.surface2,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, sidebarWidth + 20, 0, 48),
-        Size = UDim2.new(1, -(sidebarWidth + 32), 1, -60),
+        Position = UDim2.new(0, sidebarWidth + 26, 0, 54),
+        Size = UDim2.new(1, -(sidebarWidth + 40), 1, -68),
         ZIndex = inner.ZIndex + 1,
         Parent = inner,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = contentArea })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 16), Parent = contentArea })
     NewInstance("UIStroke", {
         Color = theme.border,
         Thickness = 1,
@@ -3809,8 +3809,8 @@ local function CreateWindow(config)
     local scrollHolder = NewInstance("Frame", {
         Name = "ScrollHolder",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(10, 40),
-        Size = UDim2.new(1, -20, 1, -50),
+        Position = UDim2.fromOffset(14, 44),
+        Size = UDim2.new(1, -28, 1, -58),
         ZIndex = contentInner.ZIndex + 1,
         Parent = contentInner,
     })
@@ -4047,8 +4047,8 @@ local function CreateWindow(config)
     local openButton = NewInstance("TextButton", {
         Name = "OpenMenuButton",
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -18, 0.5, 0),
-        Size = UDim2.fromOffset(64, 64),
+        Position = UDim2.new(1, -20, 0.5, 0),
+        Size = UDim2.fromOffset(68, 68),
         BackgroundColor3 = theme.surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -4059,7 +4059,7 @@ local function CreateWindow(config)
         ZIndex = 500,
         Parent = OpenButtonGui,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = openButton })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 20), Parent = openButton })
 
     local openButtonStroke = NewInstance("UIStroke", {
         Color = theme.borderStrong,
