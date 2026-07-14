@@ -625,31 +625,35 @@ local function CreateElementFactory(context)
         local name = config.Name or "Button"
         local callback = config.Callback
 
+        local baseColor = Color3.fromRGB(24, 26, 32)
+        local pressedColor = Color3.fromRGB(30, 32, 39)
+
         local btn = NewInstance("TextButton", {
             Name = "Button_" .. name,
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(23, 25, 35),
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundColor3 = baseColor,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.GothamMedium,
-            TextSize = 14,
-            TextColor3 = Color3.fromRGB(235, 240, 252),
+            TextSize = 13,
+            TextColor3 = Color3.fromRGB(236, 238, 244),
             Text = name,
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 4), Parent = btn })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = btn })
 
-        NewInstance("UIStroke", {
-            Color = Color3.fromRGB(62, 66, 86),
+        local stroke = NewInstance("UIStroke", {
+            Color = Color3.fromRGB(53, 57, 70),
             Thickness = 1,
+            Transparency = 0.05,
             Parent = btn,
         })
 
         btn.MouseButton1Click:Connect(function()
-            TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Accent.Value }):Play()
-            task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(23, 25, 35) }):Play()
+            TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = pressedColor }):Play()
+            task.delay(0.1, function()
+                TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = baseColor }):Play()
             end)
             if callback then
                 callback()
@@ -3017,18 +3021,19 @@ local function CreateElementFactory(context)
 
         local container = NewInstance("Frame", {
             Name = "Group_" .. name,
-            BackgroundColor3 = Color3.fromRGB(20, 22, 31),
+            BackgroundColor3 = Color3.fromRGB(18, 20, 26),
             BorderSizePixel = 0,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 6), Parent = container })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 10), Parent = container })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(56, 60, 78),
+            Color = Color3.fromRGB(44, 47, 58),
             Thickness = 1,
+            Transparency = 0.08,
             Parent = container,
         })
 
@@ -3041,18 +3046,18 @@ local function CreateElementFactory(context)
             Name = "Header",
             BackgroundTransparency = 1,
             AutoButtonColor = false,
-            Size = UDim2.new(1, 0, 0, 28),
+            Size = UDim2.new(1, 0, 0, 34),
             Text = "",
             Parent = container,
         })
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(8, 0),
-            Size = UDim2.new(1, -32, 1, 0),
-            Font = Enum.Font.GothamBold,
+            Position = UDim2.fromOffset(10, 0),
+            Size = UDim2.new(1, -34, 1, 0),
+            Font = Enum.Font.GothamMedium,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 226, 242),
+            TextColor3 = Color3.fromRGB(236, 238, 244),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = header,
@@ -3060,19 +3065,15 @@ local function CreateElementFactory(context)
 
         local chevron = NewInstance("TextLabel", {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -8, 0.5, 0),
+            Position = UDim2.new(1, -10, 0.5, 0),
             Size = UDim2.fromOffset(16, 16),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
+            Font = Enum.Font.GothamMedium,
             TextSize = 12,
-            TextColor3 = Accent.Value,
+            TextColor3 = Color3.fromRGB(146, 152, 170),
             Text = startOpen and "v" or ">",
             Parent = header,
         })
-
-        Accent.Changed:Connect(function(color)
-            chevron.TextColor3 = color
-        end)
 
         local body = NewInstance("Frame", {
             Name = "Body",
@@ -3084,8 +3085,8 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIPadding", {
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
             PaddingBottom = UDim.new(0, 10),
             Parent = body,
         })
@@ -3543,28 +3544,26 @@ local function CreateWindow(config)
     config = config or {}
 
     local windowName = config.Name or "Lurk"
-    local windowSize = config.Size or UDim2.fromOffset(500, 360)
-    local sidebarWidth = config.SidebarWidth or 138
+    local windowSize = config.Size or UDim2.fromOffset(470, 330)
+    local sidebarWidth = config.SidebarWidth or 118
     local openButtonText = config.OpenButtonText or string.sub(windowName, 1, 1)
-    local startColor = config.AccentColor or Color3.fromRGB(108, 92, 255)
+    local startColor = config.AccentColor or Color3.fromRGB(126, 110, 255)
 
     local MAIN_DISPLAY_ORDER = config.DisplayOrder or 2147482000
     local FLOATING_DISPLAY_ORDER = config.FloatingDisplayOrder or (MAIN_DISPLAY_ORDER - 80)
     local OPEN_BUTTON_DISPLAY_ORDER = config.OpenButtonDisplayOrder or (MAIN_DISPLAY_ORDER + 80)
 
     local theme = {
-        canvas = Color3.fromRGB(10, 12, 18),
-        surface = Color3.fromRGB(16, 18, 27),
-        surfaceAlt = Color3.fromRGB(20, 23, 34),
-        surfaceRaised = Color3.fromRGB(25, 29, 43),
-        sidebar = Color3.fromRGB(14, 16, 24),
-        border = Color3.fromRGB(54, 59, 79),
-        borderSoft = Color3.fromRGB(37, 41, 56),
-        text = Color3.fromRGB(240, 244, 255),
-        textMuted = Color3.fromRGB(151, 158, 184),
-        textSoft = Color3.fromRGB(120, 128, 154),
-        shadow = Color3.fromRGB(5, 6, 10),
-        overlay = Color3.fromRGB(6, 7, 10),
+        backdrop = Color3.fromRGB(0, 0, 0),
+        surface = Color3.fromRGB(14, 15, 19),
+        surface2 = Color3.fromRGB(19, 20, 25),
+        surface3 = Color3.fromRGB(24, 26, 32),
+        border = Color3.fromRGB(46, 49, 60),
+        borderStrong = Color3.fromRGB(60, 64, 78),
+        text = Color3.fromRGB(239, 241, 245),
+        muted = Color3.fromRGB(152, 157, 171),
+        soft = Color3.fromRGB(118, 123, 138),
+        shadow = Color3.fromRGB(0, 0, 0),
     }
 
     local existing = GuiParent:FindFirstChild("LurkGui_" .. windowName)
@@ -3610,7 +3609,7 @@ local function CreateWindow(config)
 
     local backdrop = NewInstance("TextButton", {
         Name = "Backdrop",
-        BackgroundColor3 = theme.overlay,
+        BackgroundColor3 = theme.backdrop,
         BackgroundTransparency = 1,
         AutoButtonColor = false,
         BorderSizePixel = 0,
@@ -3625,15 +3624,15 @@ local function CreateWindow(config)
         Name = "WindowShadow",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.new(windowSize.X.Scale, windowSize.X.Offset + 28, windowSize.Y.Scale, windowSize.Y.Offset + 28),
+        Size = UDim2.new(windowSize.X.Scale, windowSize.X.Offset + 14, windowSize.Y.Scale, windowSize.Y.Offset + 14),
         BackgroundColor3 = theme.shadow,
-        BackgroundTransparency = 0.58,
+        BackgroundTransparency = 0.7,
         BorderSizePixel = 0,
         Visible = false,
         ZIndex = 2,
         Parent = ScreenGui,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 24), Parent = shadow })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = shadow })
 
     local mainWindow = NewInstance("Frame", {
         Name = "MainWindow",
@@ -3647,39 +3646,13 @@ local function CreateWindow(config)
         ZIndex = 3,
         Parent = ScreenGui,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 20), Parent = mainWindow })
-    local mainStroke = NewInstance("UIStroke", {
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = mainWindow })
+    NewInstance("UIStroke", {
         Color = theme.border,
         Thickness = 1,
-        Transparency = 0.08,
+        Transparency = 0.04,
         Parent = mainWindow,
     })
-
-    local windowGradient = NewInstance("UIGradient", {
-        Rotation = 90,
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 23, 34)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(11, 13, 20)),
-        }),
-        Parent = mainWindow,
-    })
-
-    local ambientGlow = NewInstance("Frame", {
-        Name = "AmbientGlow",
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.62, 0, 0, -70),
-        Size = UDim2.fromOffset(280, 180),
-        BackgroundColor3 = Accent.Value,
-        BackgroundTransparency = 0.86,
-        BorderSizePixel = 0,
-        ZIndex = mainWindow.ZIndex,
-        Parent = mainWindow,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = ambientGlow })
-
-    Accent.Changed:Connect(function(color)
-        ambientGlow.BackgroundColor3 = color
-    end)
 
     local inner = NewInstance("Frame", {
         Name = "Inner",
@@ -3692,8 +3665,8 @@ local function CreateWindow(config)
     local titleBar = NewInstance("Frame", {
         Name = "TitleBar",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(14, 12),
-        Size = UDim2.new(1, -28, 0, 42),
+        Position = UDim2.fromOffset(12, 10),
+        Size = UDim2.new(1, -24, 0, 30),
         ZIndex = inner.ZIndex + 1,
         Parent = inner,
     })
@@ -3701,329 +3674,81 @@ local function CreateWindow(config)
     local dragHandle = NewInstance("Frame", {
         Name = "DragHandle",
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -116, 1, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         Parent = titleBar,
     })
-
-    local titleMeta = NewInstance("Frame", {
-        Name = "TitleMeta",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -116, 1, 0),
-        ZIndex = titleBar.ZIndex + 1,
-        Parent = titleBar,
-    })
-
-    local brandDot = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.new(0, 2, 0.5, 0),
-        Size = UDim2.fromOffset(10, 10),
-        BackgroundColor3 = Accent.Value,
-        BorderSizePixel = 0,
-        ZIndex = titleMeta.ZIndex + 1,
-        Parent = titleMeta,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = brandDot })
 
     local titleText = NewInstance("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(20, 2),
-        Size = UDim2.new(1, -20, 0, 18),
-        Font = Enum.Font.GothamBold,
-        TextSize = 16,
+        Size = UDim2.new(1, 0, 1, 0),
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
         TextColor3 = theme.text,
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = windowName,
-        ZIndex = titleMeta.ZIndex + 1,
-        Parent = titleMeta,
-    })
-
-    local subtitleText = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(20, 19),
-        Size = UDim2.new(1, -20, 0, 16),
-        Font = Enum.Font.Gotham,
-        TextSize = 11,
-        TextColor3 = theme.textMuted,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = "minimal dark interface",
-        ZIndex = titleMeta.ZIndex + 1,
-        Parent = titleMeta,
-    })
-
-    local windowBadge = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, 0, 0.5, 0),
-        Size = UDim2.fromOffset(104, 28),
-        BackgroundColor3 = theme.surfaceAlt,
-        BorderSizePixel = 0,
         ZIndex = titleBar.ZIndex + 1,
         Parent = titleBar,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 10), Parent = windowBadge })
-    local windowBadgeStroke = NewInstance("UIStroke", {
-        Color = theme.borderSoft,
-        Thickness = 1,
-        Transparency = 0.15,
-        Parent = windowBadge,
-    })
-
-    local badgeAccent = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.fromOffset(10, 14),
-        Size = UDim2.fromOffset(7, 7),
-        BackgroundColor3 = Accent.Value,
-        BorderSizePixel = 0,
-        ZIndex = windowBadge.ZIndex + 1,
-        Parent = windowBadge,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = badgeAccent })
-
-    local badgeText = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(24, 0),
-        Size = UDim2.new(1, -24, 1, 0),
-        Font = Enum.Font.GothamMedium,
-        TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextColor3 = theme.textMuted,
-        Text = "overlay locked",
-        ZIndex = windowBadge.ZIndex + 1,
-        Parent = windowBadge,
-    })
-
-    Accent.Changed:Connect(function(color)
-        badgeAccent.BackgroundColor3 = color
-    end)
 
     local sidebar = NewInstance("Frame", {
         Name = "Sidebar",
-        BackgroundColor3 = theme.sidebar,
+        BackgroundColor3 = theme.surface2,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(14, 62),
-        Size = UDim2.new(0, sidebarWidth, 1, -76),
+        Position = UDim2.fromOffset(12, 48),
+        Size = UDim2.new(0, sidebarWidth, 1, -60),
         ZIndex = inner.ZIndex + 1,
         Parent = inner,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = sidebar })
-    NewInstance("UIStroke", {
-        Color = theme.borderSoft,
-        Thickness = 1,
-        Transparency = 0.12,
-        Parent = sidebar,
-    })
-
-    local sidebarGlow = NewInstance("Frame", {
-        BackgroundColor3 = Accent.Value,
-        BackgroundTransparency = 0.92,
-        Position = UDim2.fromOffset(12, 12),
-        Size = UDim2.new(1, -24, 0, 56),
-        BorderSizePixel = 0,
-        ZIndex = sidebar.ZIndex + 1,
-        Parent = sidebar,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = sidebarGlow })
-
-    local logoChip = NewInstance("Frame", {
-        BackgroundColor3 = theme.surfaceRaised,
-        BorderSizePixel = 0,
-        Position = UDim2.fromOffset(12, 12),
-        Size = UDim2.new(1, -24, 0, 56),
-        ZIndex = sidebar.ZIndex + 2,
-        Parent = sidebar,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = logoChip })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = sidebar })
     NewInstance("UIStroke", {
         Color = theme.border,
         Thickness = 1,
-        Transparency = 0.15,
-        Parent = logoChip,
+        Transparency = 0.06,
+        Parent = sidebar,
     })
 
-    local logoBadge = NewInstance("Frame", {
-        Position = UDim2.fromOffset(10, 10),
-        Size = UDim2.fromOffset(36, 36),
-        BackgroundColor3 = Accent.Value,
-        BackgroundTransparency = 0.08,
-        BorderSizePixel = 0,
-        ZIndex = logoChip.ZIndex + 1,
-        Parent = logoChip,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = logoBadge })
-
-    local logoLabel = NewInstance("TextLabel", {
+    local sidebarHeader = NewInstance("Frame", {
         BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1),
-        Font = Enum.Font.GothamBlack,
-        Text = openButtonText,
-        TextSize = 20,
-        TextColor3 = theme.text,
-        ZIndex = logoBadge.ZIndex + 1,
-        Parent = logoBadge,
-    })
-
-    local logoTitle = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(56, 11),
-        Size = UDim2.new(1, -62, 0, 16),
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        TextColor3 = theme.text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = windowName,
-        ZIndex = logoChip.ZIndex + 1,
-        Parent = logoChip,
-    })
-
-    local logoSubtitle = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(56, 27),
-        Size = UDim2.new(1, -62, 0, 14),
-        Font = Enum.Font.Gotham,
-        TextSize = 11,
-        TextColor3 = theme.textMuted,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = "lucide + solar ready",
-        ZIndex = logoChip.ZIndex + 1,
-        Parent = logoChip,
-    })
-
-    Accent.Changed:Connect(function(color)
-        sidebarGlow.BackgroundColor3 = color
-        logoBadge.BackgroundColor3 = color
-    end)
-
-    local sidebarLabel = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(14, 76),
-        Size = UDim2.new(1, -28, 0, 16),
-        Font = Enum.Font.GothamMedium,
-        TextSize = 11,
-        TextColor3 = theme.textSoft,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = "SECTIONS",
+        Position = UDim2.fromOffset(12, 10),
+        Size = UDim2.new(1, -24, 0, 28),
         ZIndex = sidebar.ZIndex + 1,
         Parent = sidebar,
     })
 
-    local contentArea = NewInstance("Frame", {
-        Name = "ContentArea",
-        BackgroundColor3 = theme.surfaceAlt,
-        BorderSizePixel = 0,
-        Position = UDim2.new(0, sidebarWidth + 22, 0, 62),
-        Size = UDim2.new(1, -(sidebarWidth + 36), 1, -76),
-        ZIndex = inner.ZIndex + 1,
-        Parent = inner,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = contentArea })
-    NewInstance("UIStroke", {
-        Color = theme.borderSoft,
-        Thickness = 1,
-        Transparency = 0.1,
-        Parent = contentArea,
-    })
-
-    local contentInner = NewInstance("Frame", {
-        BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1),
-        ZIndex = contentArea.ZIndex + 1,
-        Parent = contentArea,
-    })
-
-    local tabHeader = NewInstance("Frame", {
-        Name = "TabHeader",
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(16, 14),
-        Size = UDim2.new(1, -32, 0, 48),
-        ZIndex = contentInner.ZIndex + 1,
-        Parent = contentInner,
-    })
-
-    local tabTitle = NewInstance("TextLabel", {
-        Name = "TabTitle",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -140, 0, 22),
-        Font = Enum.Font.GothamBold,
-        TextSize = 18,
-        TextColor3 = theme.text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = "",
-        ZIndex = tabHeader.ZIndex + 1,
-        Parent = tabHeader,
-    })
-
-    local tabSubtitle = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 24),
-        Size = UDim2.new(1, -140, 0, 16),
-        Font = Enum.Font.Gotham,
-        TextSize = 11,
-        TextColor3 = theme.textMuted,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = "clean layout, preserved logic",
-        ZIndex = tabHeader.ZIndex + 1,
-        Parent = tabHeader,
-    })
-
-    local liveBadge = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, 0, 0.5, 0),
-        Size = UDim2.fromOffset(116, 28),
-        BackgroundColor3 = theme.surfaceRaised,
-        BorderSizePixel = 0,
-        ZIndex = tabHeader.ZIndex + 1,
-        Parent = tabHeader,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(0, 10), Parent = liveBadge })
-    NewInstance("UIStroke", {
-        Color = theme.borderSoft,
-        Thickness = 1,
-        Transparency = 0.12,
-        Parent = liveBadge,
-    })
-
-    local liveDot = NewInstance("Frame", {
+    local sidebarMark = NewInstance("Frame", {
         AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.fromOffset(10, 14),
-        Size = UDim2.fromOffset(7, 7),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = UDim2.fromOffset(6, 6),
         BackgroundColor3 = Accent.Value,
         BorderSizePixel = 0,
-        ZIndex = liveBadge.ZIndex + 1,
-        Parent = liveBadge,
+        ZIndex = sidebarHeader.ZIndex + 1,
+        Parent = sidebarHeader,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = liveDot })
+    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = sidebarMark })
 
-    local liveText = NewInstance("TextLabel", {
+    local sidebarTitle = NewInstance("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(24, 0),
-        Size = UDim2.new(1, -24, 1, 0),
+        Position = UDim2.fromOffset(12, 0),
+        Size = UDim2.new(1, -12, 1, 0),
         Font = Enum.Font.GothamMedium,
         TextSize = 12,
+        TextColor3 = theme.muted,
         TextXAlignment = Enum.TextXAlignment.Left,
-        TextColor3 = theme.textMuted,
-        Text = "active panel",
-        ZIndex = liveBadge.ZIndex + 1,
-        Parent = liveBadge,
+        Text = "Menu",
+        ZIndex = sidebarHeader.ZIndex + 1,
+        Parent = sidebarHeader,
     })
 
     Accent.Changed:Connect(function(color)
-        liveDot.BackgroundColor3 = color
+        sidebarMark.BackgroundColor3 = color
     end)
-
-    local scrollHolder = NewInstance("Frame", {
-        Name = "ScrollHolder",
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(14, 72),
-        Size = UDim2.new(1, -28, 1, -86),
-        ZIndex = contentInner.ZIndex + 1,
-        Parent = contentInner,
-    })
 
     local tabsSidebarHolder = NewInstance("ScrollingFrame", {
         Name = "TabsHolder",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(10, 100),
-        Size = UDim2.new(1, -20, 1, -112),
+        Position = UDim2.fromOffset(8, 46),
+        Size = UDim2.new(1, -16, 1, -54),
         CanvasSize = UDim2.new(0, 0, 0, 0),
         ScrollingDirection = Enum.ScrollingDirection.Y,
         ScrollBarThickness = 0,
@@ -4034,14 +3759,61 @@ local function CreateWindow(config)
     })
 
     local tabsListLayout = NewInstance("UIListLayout", {
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = tabsSidebarHolder,
     })
 
     tabsListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        tabsSidebarHolder.CanvasSize = UDim2.new(0, 0, 0, tabsListLayout.AbsoluteContentSize.Y + 8)
+        tabsSidebarHolder.CanvasSize = UDim2.new(0, 0, 0, tabsListLayout.AbsoluteContentSize.Y + 6)
     end)
+
+    local contentArea = NewInstance("Frame", {
+        Name = "ContentArea",
+        BackgroundColor3 = theme.surface2,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, sidebarWidth + 20, 0, 48),
+        Size = UDim2.new(1, -(sidebarWidth + 32), 1, -60),
+        ZIndex = inner.ZIndex + 1,
+        Parent = inner,
+    })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = contentArea })
+    NewInstance("UIStroke", {
+        Color = theme.border,
+        Thickness = 1,
+        Transparency = 0.06,
+        Parent = contentArea,
+    })
+
+    local contentInner = NewInstance("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = contentArea.ZIndex + 1,
+        Parent = contentArea,
+    })
+
+    local tabTitle = NewInstance("TextLabel", {
+        Name = "TabTitle",
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(14, 12),
+        Size = UDim2.new(1, -28, 0, 18),
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        TextColor3 = theme.text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Text = "",
+        ZIndex = contentInner.ZIndex + 1,
+        Parent = contentInner,
+    })
+
+    local scrollHolder = NewInstance("Frame", {
+        Name = "ScrollHolder",
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(10, 40),
+        Size = UDim2.new(1, -20, 1, -50),
+        ZIndex = contentInner.ZIndex + 1,
+        Parent = contentInner,
+    })
 
     local Factory = CreateElementFactory({
         ScreenGui = ScreenGui,
@@ -4066,12 +3838,11 @@ local function CreateWindow(config)
             return
         end
 
-        entry.Fill.BackgroundTransparency = active and 0.08 or 1
-        entry.Fill.BackgroundColor3 = active and Accent.Value or theme.surfaceRaised
-        entry.Stroke.Color = active and Accent.Value or theme.borderSoft
-        entry.Stroke.Transparency = active and 0.02 or 0.18
-        entry.Label.TextColor3 = active and theme.text or theme.textMuted
-        entry.Meta.TextColor3 = active and Color3.fromRGB(206, 214, 240) or theme.textSoft
+        entry.Fill.BackgroundTransparency = active and 0 or 1
+        entry.Fill.BackgroundColor3 = theme.surface3
+        entry.Stroke.Color = active and Accent.Value or theme.border
+        entry.Stroke.Transparency = active and 0.2 or 0.15
+        entry.Label.TextColor3 = active and theme.text or theme.muted
         entry.Indicator.BackgroundTransparency = active and 0 or 1
     end
 
@@ -4090,13 +3861,7 @@ local function CreateWindow(config)
         CloseAllOverlays()
     end
 
-    Accent.Changed:Connect(function(color)
-        mainStroke.Color = Color3.fromRGB(
-            math.clamp(color.R * 255 * 0.45 + theme.border.R * 255 * 0.55, 0, 255),
-            math.clamp(color.G * 255 * 0.45 + theme.border.G * 255 * 0.55, 0, 255),
-            math.clamp(color.B * 255 * 0.45 + theme.border.B * 255 * 0.55, 0, 255)
-        )
-        brandDot.BackgroundColor3 = color
+    Accent.Changed:Connect(function()
         for name in pairs(tabButtons) do
             ApplyTabButtonVisual(name, name == selectedTab)
         end
@@ -4122,33 +3887,33 @@ local function CreateWindow(config)
         local holder = NewInstance("Frame", {
             Name = "TabButton_" .. tabName,
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 42),
+            Size = UDim2.new(1, 0, 0, 34),
             LayoutOrder = index,
             ZIndex = tabsSidebarHolder.ZIndex + 1,
             Parent = tabsSidebarHolder,
         })
 
         local fill = NewInstance("Frame", {
-            BackgroundColor3 = theme.surfaceRaised,
+            BackgroundColor3 = theme.surface3,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             Size = UDim2.fromScale(1, 1),
             ZIndex = holder.ZIndex + 1,
             Parent = holder,
         })
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 12), Parent = fill })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 9), Parent = fill })
 
         local stroke = NewInstance("UIStroke", {
-            Color = theme.borderSoft,
+            Color = theme.border,
             Thickness = 1,
-            Transparency = 0.18,
+            Transparency = 0.15,
             Parent = fill,
         })
 
         local indicator = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.fromOffset(10, 21),
-            Size = UDim2.fromOffset(4, 18),
+            Position = UDim2.fromOffset(10, 17),
+            Size = UDim2.fromOffset(3, 12),
             BackgroundColor3 = Accent.Value,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
@@ -4159,26 +3924,13 @@ local function CreateWindow(config)
 
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(24, 6),
-            Size = UDim2.new(1, -30, 0, 16),
+            Position = UDim2.fromOffset(20, 0),
+            Size = UDim2.new(1, -20, 1, 0),
             Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = theme.textMuted,
+            TextSize = 12,
+            TextColor3 = theme.muted,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = tabName,
-            ZIndex = fill.ZIndex + 1,
-            Parent = fill,
-        })
-
-        local meta = NewInstance("TextLabel", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(24, 21),
-            Size = UDim2.new(1, -30, 0, 12),
-            Font = Enum.Font.Gotham,
-            TextSize = 10,
-            TextColor3 = theme.textSoft,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Text = isFirst and "default view" or "panel",
             ZIndex = fill.ZIndex + 1,
             Parent = fill,
         })
@@ -4202,7 +3954,6 @@ local function CreateWindow(config)
             Stroke = stroke,
             Indicator = indicator,
             Label = label,
-            Meta = meta,
             Button = btn,
         }
 
@@ -4232,10 +3983,10 @@ local function CreateWindow(config)
         end
 
         local collapsedSize = UDim2.new(
-            windowSize.X.Scale * 0.92,
-            math.floor(windowSize.X.Offset * 0.92),
-            windowSize.Y.Scale * 0.92,
-            math.floor(windowSize.Y.Offset * 0.92)
+            windowSize.X.Scale * 0.96,
+            math.floor(windowSize.X.Offset * 0.96),
+            windowSize.Y.Scale * 0.96,
+            math.floor(windowSize.Y.Offset * 0.96)
         )
 
         if open then
@@ -4243,29 +3994,27 @@ local function CreateWindow(config)
             shadow.Visible = true
             mainWindow.Visible = true
             mainWindow.Size = collapsedSize
-            shadow.Size = UDim2.new(collapsedSize.X.Scale, collapsedSize.X.Offset + 28, collapsedSize.Y.Scale, collapsedSize.Y.Offset + 28)
-            mainWindow.BackgroundTransparency = 0.02
+            shadow.Size = UDim2.new(collapsedSize.X.Scale, collapsedSize.X.Offset + 14, collapsedSize.Y.Scale, collapsedSize.Y.Offset + 14)
             backdrop.BackgroundTransparency = 1
-            TweenService:Create(backdrop, TweenInfo.new(0.18), { BackgroundTransparency = 0.36 }):Play()
-            TweenService:Create(mainWindow, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = windowSize }):Play()
-            local shadowTween = TweenService:Create(shadow, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-                Size = UDim2.new(windowSize.X.Scale, windowSize.X.Offset + 28, windowSize.Y.Scale, windowSize.Y.Offset + 28),
-                BackgroundTransparency = 0.58,
+            TweenService:Create(backdrop, TweenInfo.new(0.14), { BackgroundTransparency = 0.48 }):Play()
+            TweenService:Create(mainWindow, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = windowSize }):Play()
+            local shadowTween = TweenService:Create(shadow, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(windowSize.X.Scale, windowSize.X.Offset + 14, windowSize.Y.Scale, windowSize.Y.Offset + 14),
+                BackgroundTransparency = 0.7,
             })
             shadowTween:Play()
             shadowTween.Completed:Connect(function()
                 animating = false
             end)
         else
-            local tween = TweenService:Create(mainWindow, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            local tween = TweenService:Create(mainWindow, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                 Size = collapsedSize,
-                BackgroundTransparency = 0.08,
             })
-            local shadowTween = TweenService:Create(shadow, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-                Size = UDim2.new(collapsedSize.X.Scale, collapsedSize.X.Offset + 28, collapsedSize.Y.Scale, collapsedSize.Y.Offset + 28),
-                BackgroundTransparency = 0.82,
+            local shadowTween = TweenService:Create(shadow, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Size = UDim2.new(collapsedSize.X.Scale, collapsedSize.X.Offset + 14, collapsedSize.Y.Scale, collapsedSize.Y.Offset + 14),
+                BackgroundTransparency = 0.86,
             })
-            TweenService:Create(backdrop, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+            TweenService:Create(backdrop, TweenInfo.new(0.12), { BackgroundTransparency = 1 }):Play()
             tween:Play()
             shadowTween:Play()
             tween.Completed:Connect(function()
@@ -4298,75 +4047,29 @@ local function CreateWindow(config)
     local openButton = NewInstance("TextButton", {
         Name = "OpenMenuButton",
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -22, 0.5, 0),
-        Size = UDim2.fromOffset(76, 76),
-        BackgroundColor3 = theme.surfaceAlt,
+        Position = UDim2.new(1, -18, 0.5, 0),
+        Size = UDim2.fromOffset(64, 64),
+        BackgroundColor3 = theme.surface2,
         BorderSizePixel = 0,
         AutoButtonColor = false,
-        Font = Enum.Font.GothamBlack,
-        TextSize = 24,
+        Font = Enum.Font.GothamBold,
+        TextSize = 22,
         Text = openButtonText,
         TextColor3 = theme.text,
         ZIndex = 500,
         Parent = OpenButtonGui,
     })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = openButton })
-
-    local openButtonGlow = NewInstance("Frame", {
-        Size = UDim2.new(1, 16, 1, 16),
-        Position = UDim2.fromOffset(-8, -8),
-        BackgroundColor3 = Accent.Value,
-        BackgroundTransparency = 0.82,
-        BorderSizePixel = 0,
-        ZIndex = openButton.ZIndex - 1,
-        Parent = openButton,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = openButtonGlow })
+    NewInstance("UICorner", { CornerRadius = UDim.new(0, 18), Parent = openButton })
 
     local openButtonStroke = NewInstance("UIStroke", {
-        Color = Accent.Value,
-        Thickness = 1.6,
-        Transparency = 0.08,
+        Color = theme.borderStrong,
+        Thickness = 1,
+        Transparency = 0.04,
         Parent = openButton,
     })
-
-    local openButtonInner = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.new(1, -14, 1, -14),
-        BackgroundColor3 = theme.surfaceRaised,
-        BorderSizePixel = 0,
-        ZIndex = openButton.ZIndex + 1,
-        Parent = openButton,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = openButtonInner })
-
-    local openButtonLabel = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1),
-        Font = Enum.Font.GothamBlack,
-        TextSize = 24,
-        Text = openButtonText,
-        TextColor3 = theme.text,
-        ZIndex = openButtonInner.ZIndex + 1,
-        Parent = openButtonInner,
-    })
-
-    local openButtonMiniDot = NewInstance("Frame", {
-        AnchorPoint = Vector2.new(1, 1),
-        Position = UDim2.new(1, -10, 1, -10),
-        Size = UDim2.fromOffset(10, 10),
-        BackgroundColor3 = Accent.Value,
-        BorderSizePixel = 0,
-        ZIndex = openButtonInner.ZIndex + 1,
-        Parent = openButtonInner,
-    })
-    NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = openButtonMiniDot })
 
     Accent.Changed:Connect(function(color)
-        openButtonGlow.BackgroundColor3 = color
         openButtonStroke.Color = color
-        openButtonMiniDot.BackgroundColor3 = color
     end)
 
     openButton.MouseButton1Click:Connect(function()
@@ -4467,14 +4170,14 @@ local function CreateWindow(config)
         Name = "NotifyHolder",
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 1),
-        Position = UDim2.new(1, -18, 1, -18),
-        Size = UDim2.fromOffset(300, 520),
+        Position = UDim2.new(1, -14, 1, -14),
+        Size = UDim2.fromOffset(280, 460),
         ZIndex = 320,
         Parent = ScreenGui,
     })
 
     NewInstance("UIListLayout", {
-        Padding = UDim.new(0, 10),
+        Padding = UDim.new(0, 8),
         VerticalAlignment = Enum.VerticalAlignment.Bottom,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -4488,8 +4191,8 @@ local function CreateWindow(config)
         local isToggle = forceToggle == true or cfg.Toggle == true
         local minSize = cfg.MinSize or 40
         local maxSize = cfg.MaxSize or 200
-        local size = math.clamp(cfg.Size or 92, minSize, maxSize)
-        local radius = cfg.Radius or 18
+        local size = math.clamp(cfg.Size or 86, minSize, maxSize)
+        local radius = cfg.Radius or 16
         local threshold = cfg.DragThreshold or 10
 
         local state = cfg.Default == true
@@ -4510,7 +4213,7 @@ local function CreateWindow(config)
             Name = "FloatingButton",
             Size = UDim2.fromOffset(size, size),
             Position = cfg.Position or UDim2.new(0.5, -size / 2, 0.6, 0),
-            BackgroundColor3 = theme.surfaceAlt,
+            BackgroundColor3 = theme.surface2,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = cfg.Text or "",
@@ -4525,48 +4228,13 @@ local function CreateWindow(config)
         })
         NewInstance("UICorner", { CornerRadius = UDim.new(0, radius), Parent = btn })
 
-        local inner = NewInstance("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.new(1, -12, 1, -12),
-            BackgroundColor3 = theme.surfaceRaised,
-            BorderSizePixel = 0,
-            ZIndex = btn.ZIndex + 1,
-            Parent = btn,
-        })
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, math.max(8, radius - 6)), Parent = inner })
-
-        local label = NewInstance("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Font = Enum.Font.GothamBold,
-            TextScaled = true,
-            TextWrapped = true,
-            Text = cfg.Text or "",
-            TextColor3 = theme.text,
-            ZIndex = inner.ZIndex + 1,
-            Parent = inner,
-        })
-        NewInstance("UITextSizeConstraint", { MaxTextSize = 20, MinTextSize = 8, Parent = label })
-
         local stroke = NewInstance("UIStroke", {
-            Thickness = 1.5,
-            Color = Accent.Value,
-            Transparency = 0.25,
+            Thickness = 1,
+            Color = theme.borderStrong,
+            Transparency = 0.06,
             ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
             Parent = btn,
         })
-
-        local accentDot = NewInstance("Frame", {
-            AnchorPoint = Vector2.new(1, 1),
-            Position = UDim2.new(1, -8, 1, -8),
-            Size = UDim2.fromOffset(9, 9),
-            BackgroundColor3 = Accent.Value,
-            BorderSizePixel = 0,
-            ZIndex = inner.ZIndex + 1,
-            Parent = inner,
-        })
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = accentDot })
 
         local handle = {}
         handle.Gui = floatingGui
@@ -4609,27 +4277,25 @@ local function CreateWindow(config)
 
         local baseText = cfg.Text or ""
         local function applyVisual()
-            accentDot.BackgroundColor3 = Accent.Value
             if isToggle and state then
                 btn.BackgroundColor3 = Accent.Value
-                inner.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                label.TextColor3 = Color3.fromRGB(26, 28, 36)
+                btn.TextColor3 = Color3.fromRGB(18, 18, 24)
                 stroke.Color = Accent.Value
-                stroke.Transparency = 0
-                accentDot.BackgroundColor3 = Color3.fromRGB(26, 28, 36)
-                label.Text = cfg.OnText or baseText
+                stroke.Transparency = 0.02
+                btn.Text = cfg.OnText or baseText
             else
-                btn.BackgroundColor3 = theme.surfaceAlt
-                inner.BackgroundColor3 = theme.surfaceRaised
-                label.TextColor3 = theme.text
-                stroke.Color = Accent.Value
-                stroke.Transparency = 0.25
-                if isToggle then label.Text = cfg.OffText or baseText end
+                btn.BackgroundColor3 = theme.surface2
+                btn.TextColor3 = theme.text
+                stroke.Color = theme.borderStrong
+                stroke.Transparency = 0.06
+                if isToggle then btn.Text = cfg.OffText or baseText end
             end
         end
 
         applyVisual()
-        Accent.Changed:Connect(applyVisual)
+        Accent.Changed:Connect(function()
+            applyVisual()
+        end)
 
         local activeInput = nil
         local moved = false
@@ -4749,7 +4415,7 @@ local function CreateWindow(config)
         end
 
         function handle:SetText(text)
-            label.Text = text or ""
+            btn.Text = text or ""
             if not isToggle then
                 baseText = text or ""
             end
@@ -4821,7 +4487,7 @@ local function CreateWindow(config)
         local duration = cfg.Duration or 4
 
         local card = NewInstance("Frame", {
-            BackgroundColor3 = theme.surfaceAlt,
+            BackgroundColor3 = theme.surface2,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -4829,7 +4495,7 @@ local function CreateWindow(config)
             ZIndex = notifyHolder.ZIndex + 1,
             Parent = notifyHolder,
         })
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 14), Parent = card })
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 10), Parent = card })
 
         local cardStroke = NewInstance("UIStroke", {
             Color = theme.border,
@@ -4852,37 +4518,19 @@ local function CreateWindow(config)
             Parent = card,
         })
 
-        local titleRow = NewInstance("Frame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 16),
-            Parent = card,
-        })
-
-        local accentBar = NewInstance("Frame", {
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.fromOffset(0, 8),
-            Size = UDim2.fromOffset(4, 14),
-            BackgroundColor3 = Accent.Value,
-            BorderSizePixel = 0,
-            ZIndex = card.ZIndex + 1,
-            Parent = titleRow,
-        })
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = accentBar })
-
         local titleLabel = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, -12, 0, 0),
-            Font = Enum.Font.GothamBold,
-            TextSize = 14,
+            Size = UDim2.new(1, 0, 0, 0),
+            Font = Enum.Font.GothamMedium,
+            TextSize = 13,
             TextColor3 = theme.text,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = title,
             TextTransparency = 1,
             ZIndex = card.ZIndex + 1,
-            Parent = titleRow,
+            Parent = card,
         })
 
         local bodyLabel = NewInstance("TextLabel", {
@@ -4890,8 +4538,8 @@ local function CreateWindow(config)
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.Gotham,
-            TextSize = 13,
-            TextColor3 = theme.textMuted,
+            TextSize = 12,
+            TextColor3 = theme.muted,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = content,
@@ -4900,20 +4548,16 @@ local function CreateWindow(config)
             Parent = card,
         })
 
-        Accent.Changed:Connect(function(color)
-            accentBar.BackgroundColor3 = color
-        end)
-
-        TweenService:Create(card, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
-        TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 0.2 }):Play()
-        TweenService:Create(titleLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
-        TweenService:Create(bodyLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
+        TweenService:Create(card, TweenInfo.new(0.18), { BackgroundTransparency = 0 }):Play()
+        TweenService:Create(cardStroke, TweenInfo.new(0.18), { Transparency = 0.08 }):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.18), { TextTransparency = 0 }):Play()
+        TweenService:Create(bodyLabel, TweenInfo.new(0.18), { TextTransparency = 0 }):Play()
 
         task.delay(duration, function()
-            TweenService:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
-            TweenService:Create(cardStroke, TweenInfo.new(0.25), { Transparency = 1 }):Play()
-            TweenService:Create(titleLabel, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
-            local fade = TweenService:Create(bodyLabel, TweenInfo.new(0.25), { TextTransparency = 1 })
+            TweenService:Create(card, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+            TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 1 }):Play()
+            TweenService:Create(titleLabel, TweenInfo.new(0.2), { TextTransparency = 1 }):Play()
+            local fade = TweenService:Create(bodyLabel, TweenInfo.new(0.2), { TextTransparency = 1 })
             fade:Play()
             fade.Completed:Connect(function()
                 card:Destroy()
