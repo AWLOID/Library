@@ -15,7 +15,6 @@ while not LocalPlayer do
     LocalPlayer = Players.LocalPlayer
 end
 
--- Определяем безопасного родителя для GUI
 local GuiParent
 do
     local ok, hui = pcall(function()
@@ -27,7 +26,7 @@ do
     else
         local ok2, cg = pcall(function() return game:GetService("CoreGui") end)
         if ok2 and cg then
-            -- проверяем, что реально можем туда писать
+
             local ok3 = pcall(function()
                 local probe = Instance.new("Folder")
                 probe.Parent = cg
@@ -53,7 +52,6 @@ local function ProtectGui(gui)
     end)
 end
 
--- Файловая система экзекутора (для конфигов). Если нет — просто отключаем.
 local FS = { Enabled = false }
 do
     local ok = pcall(function()
@@ -72,17 +70,16 @@ do
         FS.Delete  = (typeof(delfile) == "function") and delfile or function() end
     end
 end
+
 local Util = {}
 
--- Создание инстанса. Parent выставляется ПОСЛЕДНИМ — это заметно снижает
--- количество пересчётов layout'а и делает открытие меню плавнее.
 local function New(className, props, children)
     local inst = Instance.new(className)
     local parent
     if props then
         parent = props.Parent
         props.Parent = nil
-        -- быстрый путь; если клиент не знает какое-то свойство, ставим по одному
+
         local ok = pcall(function()
             for key, value in pairs(props) do
                 inst[key] = value
@@ -129,8 +126,6 @@ local function FormatNumber(n, decimals)
     return string.format("%.2f", n)
 end
 
--- Безопасный вызов пользовательского колбэка: ошибка в чужом коде
--- больше не ломает всю библиотеку (это был реальный баг старой версии).
 local function SafeCall(fn, ...)
     if typeof(fn) ~= "function" then return end
     local args = table.pack(...)
@@ -139,7 +134,7 @@ local function SafeCall(fn, ...)
             fn(table.unpack(args, 1, args.n))
         end)
         if not ok then
-            warn("[Lurk] Ошибка в колбэке: " .. tostring(err))
+            warn("[Lurk] Callback error: " .. tostring(err))
         end
     end)
 end
@@ -172,7 +167,6 @@ local function ViewportSize()
     return Vector2.new(1280, 720)
 end
 
--- Хелперы для UI-модификаторов
 local function Corner(inst, radius)
     return New("UICorner", { CornerRadius = UDim.new(0, radius or 6), Parent = inst })
 end
@@ -317,8 +311,6 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Аварийная страховка: если инпут «потерялся» (альт-таб, сворачивание),
--- сессия не зависнет навсегда.
 RunService.Heartbeat:Connect(function()
     if #InputMgr.Sessions == 0 then return end
     for i = #InputMgr.Sessions, 1, -1 do
@@ -329,7 +321,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Привязка перетаскивания к GUI-объекту
 function InputMgr.Bind(gui, handlers)
     return gui.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -347,7 +338,7 @@ end
 
 local Anim = {}
 
-Anim.Speed = 1 -- глобальный множитель скорости (настраивается в меню)
+Anim.Speed = 1
 
 local STYLE = {
     Smooth = { Enum.EasingStyle.Quart, Enum.EasingDirection.Out },
@@ -360,7 +351,7 @@ local STYLE = {
 
 local function Tween(obj, props, duration, styleName)
     if not obj or not obj.Parent then
-        -- всё равно применяем значения, чтобы состояние не разъехалось
+
         if obj then
             for k, v in pairs(props) do pcall(function() obj[k] = v end) end
         end
@@ -379,7 +370,6 @@ local function Tween(obj, props, duration, styleName)
 end
 Anim.Tween = Tween
 
--- Волна при клике
 local function Ripple(button, x, y, color)
     if not button or not button.Parent then return end
     local abs = button.AbsolutePosition
@@ -416,7 +406,6 @@ local function Ripple(button, x, y, color)
 end
 Anim.Ripple = Ripple
 
--- Ховер-эффект (наведение мышью)
 local function Hover(obj, onEnter, onLeave)
     local entered = false
     obj.MouseEnter:Connect(function()
@@ -499,7 +488,6 @@ local function CreateTheme(config)
     T.Colors = table.clone(PALETTES[T.PaletteName] or PALETTES.Dark)
     T.Colors.Accent = config.AccentColor or Color3.fromRGB(255, 45, 65)
 
-    -- Прозрачность по группам: 0 = как задумано, 1 = невидимо
     T.Alpha = {
         Fill   = config.Transparency or 0,
         Text   = config.TextTransparency or 0,
@@ -521,7 +509,6 @@ local function CreateTheme(config)
     end
     T.Eff = EffectiveValue
 
-    -- Регистрация цвета
     function T.Paint(inst, prop, role)
         local entry = { Object = inst, Prop = prop, Role = role }
         table.insert(T.Paints, entry)
@@ -532,8 +519,6 @@ local function CreateTheme(config)
         return entry
     end
 
-    -- Регистрация прозрачности. Возвращает handle с SetBase/Apply,
-    -- чтобы ховер-эффекты не конфликтовали с глобальным ползунком.
     function T.Fade(inst, prop, base, group)
         group = group or "Fill"
         local entry = { Object = inst, Prop = prop, Base = base or 0, Group = group }
@@ -587,8 +572,6 @@ local function CreateTheme(config)
         T.AlphaChanged:Fire(T.Alpha)
     end
 
-    -- Применение откладывается на кадр — при перетаскивании ползунка
-    -- прозрачности мы не пересчитываем 2000 объектов по 5 раз за кадр.
     local function ScheduleApply()
         if pendingApply then return end
         pendingApply = true
@@ -642,7 +625,6 @@ local function CreateTheme(config)
         return list
     end
 
-    -- Быстрый доступ
     function T.Accent() return T.Colors.Accent end
 
     function T.Destroy()
@@ -699,7 +681,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
--- Глобальный захват клавиш для биндов
 local ActiveKeybindCapture = nil
 
 local ELEMENT_NAMES = {
@@ -727,7 +708,6 @@ local function CreateFactory(ctx)
         return config or {}
     end
 
-    -- Поддержка обоих стилей вызова: api.Set(v) и api:Set(v)
     local function Dual(api, name, fn)
         api[name] = function(...)
             local args = table.pack(...)
@@ -753,7 +733,6 @@ local function CreateFactory(ctx)
         return New("Frame", props)
     end
 
-    -- Поверхность (карточка) с обводкой
     local function Surface(parent, props, colorRole, strokeAlpha)
         local frame = New("Frame", props)
         T.Paint(frame, "BackgroundColor3", colorRole or "Surface2")
@@ -776,7 +755,6 @@ local function CreateFactory(ctx)
         return label
     end
 
-    -- Заголовок элемента слева + место под контрол справа
     local function LabelledRow(parent, cfg, name, height, rightWidth)
         height = height or 32
         local root = Root(parent, name, cfg, height)
@@ -802,7 +780,6 @@ local function CreateFactory(ctx)
             Parent = card,
         }, "Text")
 
-        -- мягкая подсветка при наведении
         Anim.Hover(card, function()
             Tween(card, { BackgroundColor3 = T.Colors.Surface3 }, 0.16, "Fast")
             strokeFade.SetBase(0.05, true)
@@ -814,7 +791,6 @@ local function CreateFactory(ctx)
         return root, card, title, cardFade, stroke, strokeFade
     end
 
-    -- Финализация элемента: общие методы для всех
     local function Finish(api, root, cfg)
         api.Instance = root
         api.Type = api.Type or "Element"
@@ -874,7 +850,6 @@ local function CreateFactory(ctx)
         FireCallback = FireCallback, Click = Click,
     }
 
-    -- ---------- LABEL ----------
     function Factory.Label(parent, config)
         local cfg = Cfg(config, "Text")
         local root = Root(parent, "Label", cfg)
@@ -903,7 +878,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- PARAGRAPH ----------
     function Factory.Paragraph(parent, config)
         local cfg = Cfg(config, "Text")
         local root = Root(parent, "Paragraph", cfg)
@@ -992,7 +966,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- DIVIDER ----------
     function Factory.Divider(parent, config)
         local cfg = Cfg(config)
         local root = Root(parent, "Divider", cfg, cfg.Height or 9)
@@ -1009,7 +982,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- SPACER ----------
     function Factory.Spacer(parent, config)
         local cfg = Cfg(config, "Height")
         local height = tonumber(cfg.Height) or 8
@@ -1021,7 +993,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- BUTTON ----------
     local BUTTON_STYLES = {
         Default = { Bg = "Surface3", Text = "Text" },
         Primary = { Bg = "Accent",   Text = nil },
@@ -1091,7 +1062,7 @@ local function CreateFactory(ctx)
             if cfg.Confirm then
                 if not confirmState then
                     confirmState = true
-                    button.Text = cfg.ConfirmText or "Точно? Нажми ещё раз"
+                    button.Text = cfg.ConfirmText or "Sure? Click again"
                     Tween(button, { BackgroundColor3 = T.Colors.Warn }, 0.15, "Fast")
                     task.delay(cfg.ConfirmTime or 3, function()
                         if confirmState then
@@ -1127,7 +1098,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- DOUBLE BUTTON (две кнопки в ряд) ----------
     function Factory.DoubleButton(parent, config)
         local cfg = Cfg(config)
         local root = Root(parent, "DoubleButton", cfg, cfg.Height or 32)
@@ -1160,10 +1130,8 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- Объявляем заранее: используется вложенными контейнерами (Toggle/Group/Card)
     local BindContainer
 
-    -- ---------- TOGGLE ----------
     function Factory.Toggle(parent, config)
         local cfg = Cfg(config, "Name")
         local state = cfg.Default == true
@@ -1221,7 +1189,6 @@ local function CreateFactory(ctx)
             Parent = card,
         })
 
-        -- вложенные элементы (появляются, когда тумблер включён)
         local subHolder
         local function EnsureSub()
             if not subHolder then
@@ -1291,7 +1258,6 @@ local function CreateFactory(ctx)
         Dual(api, "GetContainer", function() return EnsureSub() end)
         api.OnDestroy = function() api.Changed:Destroy() end
 
-        -- Даём тумблеру полный набор Add-методов для вложенных элементов
         BindContainer(api, EnsureSub)
 
         if state and cfg.FireOnStart then
@@ -1300,7 +1266,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- CHECKBOX ----------
     function Factory.Checkbox(parent, config)
         local cfg = Cfg(config, "Name")
         local state = cfg.Default == true
@@ -1377,7 +1342,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- SWITCH (крупный переключатель) ----------
     function Factory.Switch(parent, config)
         local cfg = Cfg(config, "Name")
         local state = cfg.Default == true
@@ -1473,7 +1437,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- PROGRESS BAR ----------
     function Factory.ProgressBar(parent, config)
         local cfg = Cfg(config, "Name")
         local value = Clamp01(cfg.Default or 0)
@@ -1544,7 +1507,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- SPINNER (индикатор загрузки) ----------
     function Factory.Spinner(parent, config)
         local cfg = Cfg(config, "Name")
         local root = Root(parent, "Spinner", cfg, 40)
@@ -1576,7 +1538,7 @@ local function CreateFactory(ctx)
             Font = Enum.Font.GothamMedium,
             TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = tostring(cfg.Name or cfg.Text or "Загрузка..."),
+            Text = tostring(cfg.Name or cfg.Text or "Loading..."),
             Parent = root,
         }, "SubText")
 
@@ -1601,7 +1563,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- KEY / VALUE ----------
     function Factory.KeyValue(parent, config)
         local cfg = Cfg(config, "Name")
         local root, card, title = LabelledRow(parent, cfg, "KeyValue", 30, 120)
@@ -1627,7 +1588,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- BADGE ----------
     function Factory.Badge(parent, config)
         local cfg = Cfg(config, "Text")
         local root, card, title = LabelledRow(parent, cfg, "Badge", 32, 100)
@@ -1673,7 +1633,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- STAT (крупное число) ----------
     function Factory.Stat(parent, config)
         local cfg = Cfg(config, "Name")
         local root = Root(parent, "Stat", cfg, 58)
@@ -1713,7 +1672,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- IMAGE ----------
     function Factory.Image(parent, config)
         local cfg = Cfg(config, "Image")
         local height = cfg.Height or 120
@@ -1745,7 +1703,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- AVATAR (аватар игрока) ----------
     function Factory.Avatar(parent, config)
         local cfg = Cfg(config, "Name")
         local root = Root(parent, "Avatar", cfg, 56)
@@ -1822,8 +1779,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- ХЕЛПЕР: ПОЛЗУНОК ----------
-    -- Общая механика для Slider / RangeSlider / ToggleSlider
     local function BuildTrack(parent, props)
         local track = New("Frame", props)
         T.Paint(track, "BackgroundColor3", "Surface")
@@ -1866,7 +1821,6 @@ local function CreateFactory(ctx)
         return Clamp01((x - track.AbsolutePosition.X) / size)
     end
 
-    -- ---------- SLIDER ----------
     function Factory.Slider(parent, config)
         local cfg = Cfg(config, "Name")
         local min = cfg.Min or 0
@@ -1896,7 +1850,6 @@ local function CreateFactory(ctx)
             Parent = card,
         }, "SubText")
 
-        -- Поле значения можно редактировать вручную
         local valueBox = New("TextBox", {
             AnchorPoint = Vector2.new(1, 0),
             Position = UDim2.new(1, 0, 0, 0),
@@ -1922,7 +1875,6 @@ local function CreateFactory(ctx)
         })
         local knob = BuildKnob(track, 13)
 
-        -- Невидимая широкая зона для удобного попадания пальцем/мышью
         local hitArea = New("TextButton", {
             AnchorPoint = Vector2.new(0, 1),
             Position = UDim2.new(0, 0, 1, 0),
@@ -2004,7 +1956,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- RANGE SLIDER ----------
     function Factory.RangeSlider(parent, config)
         local cfg = Cfg(config, "Name")
         local min = cfg.Min or 0
@@ -2130,7 +2081,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- STEPPER ----------
     function Factory.Stepper(parent, config)
         local cfg = Cfg(config, "Name")
         local min = cfg.Min or 0
@@ -2211,7 +2161,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- TOGGLE + SLIDER В ОДНОЙ СТРОКЕ ----------
     function Factory.ToggleSlider(parent, config)
         local cfg = Cfg(config, "Name")
         local root = Root(parent, "ToggleSlider", cfg, 52)
@@ -2364,7 +2313,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- RATING (звёзды) ----------
     function Factory.Rating(parent, config)
         local cfg = Cfg(config, "Name")
         local count = cfg.Count or 5
@@ -2424,7 +2372,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- ХЕЛПЕР: ПОЛЕ ВВОДА ----------
     local function BuildTextBox(parent, cfg, props)
         local frame = New("Frame", props)
         T.Paint(frame, "BackgroundColor3", "Surface")
@@ -2465,7 +2412,6 @@ local function CreateFactory(ctx)
         return frame, box
     end
 
-    -- ---------- TEXTBOX (поле справа от подписи) ----------
     function Factory.Textbox(parent, config)
         local cfg = Cfg(config, "Name")
         local root, card, title = LabelledRow(parent, cfg, "Textbox", 34, (cfg.BoxWidth or 130) + 10)
@@ -2499,7 +2445,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- INPUT (подпись сверху, поле на всю ширину) ----------
     function Factory.Input(parent, config)
         local cfg = Cfg(config, "Name")
         local hasButton = cfg.Button ~= nil
@@ -2554,7 +2499,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- TEXTAREA (многострочное поле) ----------
     function Factory.TextArea(parent, config)
         local cfg = Cfg(config, "Name")
         local height = cfg.Height or 90
@@ -2595,12 +2539,10 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- KEYBIND ----------
-    -- Один общий обработчик клавиш на всё окно
     local KeybindList = {}
 
     UserInputService.InputBegan:Connect(function(input, processed)
-        -- режим захвата новой клавиши
+
         if ActiveKeybindCapture then
             local capture = ActiveKeybindCapture
             if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -2638,7 +2580,7 @@ local function CreateFactory(ctx)
     function Factory.Keybind(parent, config)
         local cfg = Cfg(config, "Name")
         local current = cfg.Default
-        local mode = cfg.Mode or "Toggle" -- Toggle | Hold | Always
+        local mode = cfg.Mode or "Toggle"
         local state = false
 
         local root, card, title = LabelledRow(parent, cfg, "Keybind", 32, 110)
@@ -2669,7 +2611,7 @@ local function CreateFactory(ctx)
         local listening = false
 
         local function Refresh()
-            btn.Text = listening and "[ жду... ]" or KeyName(current)
+            btn.Text = listening and "[ listening... ]" or KeyName(current)
             if listening then
                 btnStroke.Color = T.Colors.Accent
                 btnStrokeFade.SetBase(0, true)
@@ -2762,8 +2704,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- ХЕЛПЕР: ВЫПАДАЮЩИЙ СПИСОК ----------
-    -- Общая база для Dropdown / MultiDropdown / SearchableDropdown / PlayerDropdown
     local function BuildDropdown(parent, cfg, opts)
         opts = opts or {}
         local multi = opts.Multi == true
@@ -2835,7 +2775,6 @@ local function CreateFactory(ctx)
             Parent = box,
         }, "Accent")
 
-        -- Оверлей со списком
         local holder = New("Frame", {
             Name = "DropdownOverlay",
             BackgroundTransparency = 1,
@@ -2862,7 +2801,7 @@ local function CreateFactory(ctx)
         local searchHeight = searchable and 28 or 0
         if searchable then
             local sFrame, sBox = BuildTextBox(panel, {
-                Placeholder = cfg.SearchPlaceholder or "Поиск...",
+                Placeholder = cfg.SearchPlaceholder or "Search...",
                 TextSize = 12,
             }, {
                 Position = UDim2.fromOffset(4, 4),
@@ -2902,11 +2841,11 @@ local function CreateFactory(ctx)
                 for _, opt in ipairs(options) do
                     if selectedSet[opt] then table.insert(list, opt) end
                 end
-                if #list == 0 then return cfg.Placeholder or "Ничего не выбрано" end
-                if #list > 3 then return #list .. " выбрано" end
+                if #list == 0 then return cfg.Placeholder or "Nothing selected" end
+                if #list > 3 then return #list .. " selected" end
                 return table.concat(list, ", ")
             end
-            return selected or cfg.Placeholder or "Не выбрано"
+            return selected or cfg.Placeholder or "None"
         end
 
         local function RefreshBox()
@@ -3105,7 +3044,6 @@ local function CreateFactory(ctx)
             Close = Close,
         })
 
-        -- Автообновление списка игроков
         local playerConns = {}
         if isPlayers then
             local function RefreshPlayers()
@@ -3200,11 +3138,10 @@ local function CreateFactory(ctx)
     end
     function Factory.PlayerDropdown(parent, config)
         local cfg = Cfg(config, "Name")
-        cfg.Name = cfg.Name or "Игрок"
+        cfg.Name = cfg.Name or "Player"
         return BuildDropdown(parent, cfg, { Search = cfg.Search ~= false, Players = true, Multi = cfg.Multi == true })
     end
 
-    -- ---------- RADIO GROUP ----------
     function Factory.RadioGroup(parent, config)
         local cfg = Cfg(config, "Name")
         local options = cfg.Options or {}
@@ -3312,7 +3249,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- SEGMENTED (переключатель-сегменты) ----------
     function Factory.Segmented(parent, config)
         local cfg = Cfg(config, "Name")
         local options = cfg.Options or {}
@@ -3407,7 +3343,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- CHIPS (мультивыбор «таблетками») ----------
     function Factory.Chips(parent, config)
         local cfg = Cfg(config, "Name")
         local options = cfg.Options or {}
@@ -3535,7 +3470,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- COLOR PICKER ----------
     function Factory.ColorPicker(parent, config)
         local cfg = Cfg(config, "Name")
         local color = cfg.Default or Color3.fromRGB(255, 255, 255)
@@ -3562,7 +3496,6 @@ local function CreateFactory(ctx)
         T.Paint(swatchStroke, "Color", "Border")
         local swatchStrokeFade = T.Fade(swatchStroke, "Transparency", 0.1, "Stroke")
 
-        -- ---- Панель выбора ----
         local panelWidth = 208
         local panelHeight = 200 + (useAlpha and 26 or 0)
 
@@ -3589,7 +3522,6 @@ local function CreateFactory(ctx)
         local panelStrokeFade = T.Fade(panelStroke, "Transparency", 0.25, "Stroke")
         Padding(panel, 10, 10, 10, 10)
 
-        -- Область насыщенность/яркость
         local svArea = New("Frame", {
             Size = UDim2.fromOffset(188, 120),
             BackgroundColor3 = Color3.fromHSV(h, 1, 1),
@@ -3642,7 +3574,6 @@ local function CreateFactory(ctx)
         Corner(svCursor, 999)
         New("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Parent = svCursor })
 
-        -- Полоса оттенка
         local hueBar = New("Frame", {
             Position = UDim2.fromOffset(0, 128),
             Size = UDim2.fromOffset(188, 14),
@@ -3674,7 +3605,6 @@ local function CreateFactory(ctx)
         })
         Corner(hueCursor, 999)
 
-        -- Полоса прозрачности
         local alphaBar, alphaCursor
         if useAlpha then
             alphaBar = New("Frame", {
@@ -3706,7 +3636,6 @@ local function CreateFactory(ctx)
             Corner(alphaCursor, 999)
         end
 
-        -- HEX-поле
         local hexFrame, hexBox = BuildTextBox(panel, { TextSize = 12, Placeholder = "#FFFFFF" }, {
             Position = UDim2.fromOffset(0, useAlpha and 170 or 150),
             Size = UDim2.fromOffset(100, 24),
@@ -3884,7 +3813,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- GRAPH (линейный график) ----------
     function Factory.Graph(parent, config)
         local cfg = Cfg(config, "Name")
         local maxPoints = cfg.MaxPoints or 60
@@ -3901,7 +3829,7 @@ local function CreateFactory(ctx)
             Font = Enum.Font.GothamMedium,
             TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = tostring(cfg.Name or "График"),
+            Text = tostring(cfg.Name or "Graph"),
             Parent = root,
         }, "SubText")
 
@@ -3926,7 +3854,6 @@ local function CreateFactory(ctx)
             Parent = root,
         }, "Surface", 0.3)
 
-        -- сетка
         for i = 1, 3 do
             local line = New("Frame", {
                 Position = UDim2.fromScale(0, i / 4),
@@ -4017,7 +3944,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- CONSOLE (лог) ----------
     function Factory.Console(parent, config)
         local cfg = Cfg(config, "Name")
         local height = cfg.Height or 130
@@ -4030,7 +3956,7 @@ local function CreateFactory(ctx)
             Font = Enum.Font.GothamMedium,
             TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = tostring(cfg.Name or "Консоль"),
+            Text = tostring(cfg.Name or "Console"),
             Parent = root,
         }, "SubText")
 
@@ -4041,7 +3967,7 @@ local function CreateFactory(ctx)
             BackgroundTransparency = 1,
             Font = Enum.Font.GothamBold,
             TextSize = 11,
-            Text = "ОЧИСТИТЬ",
+            Text = "CLEAR",
             AutoButtonColor = false,
             Parent = root,
         })
@@ -4121,7 +4047,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- LIST VIEW (динамический список) ----------
     function Factory.ListView(parent, config)
         local cfg = Cfg(config, "Name")
         local height = cfg.Height or 120
@@ -4271,7 +4196,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- TABLE ----------
     function Factory.Table(parent, config)
         local cfg = Cfg(config, "Name")
         local columns = cfg.Columns or { "A", "B" }
@@ -4409,7 +4333,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- GROUP (сворачиваемый контейнер) ----------
     function Factory.Group(parent, config)
         local cfg = Cfg(config, "Name")
         local open = cfg.Open ~= false
@@ -4439,7 +4362,7 @@ local function CreateFactory(ctx)
             Font = Enum.Font.GothamBold,
             TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = tostring(cfg.Name or cfg.Text or "Группа"),
+            Text = tostring(cfg.Name or cfg.Text or "Group"),
             Parent = header,
         }, "Text")
 
@@ -4518,7 +4441,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- CARD (обычный контейнер с заголовком) ----------
     function Factory.Card(parent, config)
         local cfg = Cfg(config, "Name")
         local root = Root(parent, "Card", cfg)
@@ -4563,7 +4485,6 @@ local function CreateFactory(ctx)
         return Finish(api, root, cfg)
     end
 
-    -- ---------- ПРИВЯЗКА МЕТОДОВ КОНТЕЙНЕРА ----------
     local ALIASES = {
         AddText = "Label", AddTitle = "Section", AddSeparator = "Divider",
         AddColorpicker = "ColorPicker", AddTextBox = "Textbox",
@@ -4598,10 +4519,6 @@ local function CreateFactory(ctx)
 
     return Factory
 end
-
--- ==========================================================================
--- 9. ВКЛАДКА
--- ==========================================================================
 
 local function CreateTab(ctx, tabName, options)
     options = options or {}
@@ -4662,10 +4579,6 @@ local function CreateTab(ctx, tabName, options)
     return Tab
 end
 
--- ==========================================================================
--- 10. ОКНО
--- ==========================================================================
-
 local function CreateWindow(config)
     config = config or {}
 
@@ -4689,7 +4602,6 @@ local function CreateWindow(config)
     local logoText     = config.LogoText or string.sub(windowName, 1, 1)
     local toggleKey    = config.ToggleKey or Enum.KeyCode.RightShift
 
-    -- убираем прошлое окно с тем же именем
     local existing = GuiParent:FindFirstChild("LurkGui_" .. windowName)
     if existing then existing:Destroy() end
 
@@ -4705,7 +4617,6 @@ local function CreateWindow(config)
 
     local Theme = CreateTheme(config)
 
-    -- ---------- КОНТЕКСТ ДЛЯ ЭЛЕМЕНТОВ ----------
     local ctx = {
         Theme = Theme,
         ScreenGui = ScreenGui,
@@ -4720,7 +4631,6 @@ local function CreateWindow(config)
     Window.Flags = {}
     Window.Elements = {}
 
-    -- ---------- ЗВУК ----------
     local soundEnabled = config.Sound == true
     local soundId = config.SoundId or ""
     local clickSound
@@ -4733,7 +4643,6 @@ local function CreateWindow(config)
         end
     end
 
-    -- ---------- ФЛАГИ (для конфигов) ----------
     function ctx.RegisterFlag(flag, api)
         Window.Elements[flag] = api
         if api.Get then
@@ -4744,7 +4653,6 @@ local function CreateWindow(config)
         Window.Flags[flag] = value
     end
 
-    -- ---------- ОКНО ----------
     local viewport = ViewportSize()
     local windowClass = "Frame"
     local canvasOk = pcall(function()
@@ -4775,7 +4683,6 @@ local function CreateWindow(config)
     Theme.Paint(windowStroke, "Color", "Accent")
     Theme.Fade(windowStroke, "Transparency", 0.45, "Stroke")
 
-    -- Тонкая внутренняя рамка для «глубины»
     local innerGlow = New("Frame", {
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
@@ -4788,7 +4695,6 @@ local function CreateWindow(config)
     Theme.Paint(innerStroke, "Color", "Surface3")
     Theme.Fade(innerStroke, "Transparency", 0.4, "Stroke")
 
-    -- ---------- ЗАГОЛОВОК ----------
     local titleBar = New("Frame", {
         Name = "TitleBar",
         BackgroundTransparency = 1,
@@ -4825,7 +4731,6 @@ local function CreateWindow(config)
     Theme.Paint(subtitleText, "TextColor3", "Muted")
     Theme.Fade(subtitleText, "TextTransparency", 0, "Text")
 
-    -- кнопки заголовка
     local function TitleButton(text, offsetX, color, callback)
         local btn = New("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
@@ -4858,7 +4763,6 @@ local function CreateWindow(config)
         return btn
     end
 
-    -- ---------- САЙДБАР ----------
     local sidebar = New("Frame", {
         Name = "Sidebar",
         Position = UDim2.fromOffset(8, 42),
@@ -4892,7 +4796,6 @@ local function CreateWindow(config)
     Theme.Paint(logoLabel, "TextColor3", "Accent")
     Theme.Fade(logoLabel, "TextTransparency", 0, "Text")
 
-    -- поиск по вкладкам
     local searchFrame = New("Frame", {
         Position = UDim2.fromOffset(8, 44),
         Size = UDim2.new(1, -16, 0, 24),
@@ -4910,7 +4813,7 @@ local function CreateWindow(config)
         Font = Enum.Font.Gotham,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
-        PlaceholderText = "Поиск...",
+        PlaceholderText = "Search...",
         Text = "",
         ClearTextOnFocus = false,
         ZIndex = 5,
@@ -4935,7 +4838,6 @@ local function CreateWindow(config)
     })
     ListLayout(tabsHolder, 4)
 
-    -- ---------- КОНТЕНТ ----------
     local content = New("Frame", {
         Name = "Content",
         Position = UDim2.fromOffset(sidebarWidth + 14, 42),
@@ -4987,7 +4889,6 @@ local function CreateWindow(config)
 
     ctx.PageHolder = pageHolder
 
-    -- ---------- РЕСАЙЗ ----------
     local resizeGrip = New("TextButton", {
         Name = "ResizeGrip",
         AnchorPoint = Vector2.new(1, 1),
@@ -5036,7 +4937,7 @@ local function CreateWindow(config)
                 local newHeight = math.clamp(startSize.Y + delta.Y / scale, minHeight, maxHeight)
                 baseWidth, baseHeight = newWidth, newHeight
                 mainWindow.Size = UDim2.fromOffset(newWidth, newHeight)
-                -- держим верхний левый угол на месте
+
                 mainWindow.Position = UDim2.fromOffset(
                     startPos.X.Offset + (newWidth - startSize.X) * scale / 2,
                     startPos.Y.Offset + (newHeight - startSize.Y) * scale / 2
@@ -5058,7 +4959,6 @@ local function CreateWindow(config)
         end)
     end
 
-    -- ---------- ПЕРЕТАСКИВАНИЕ ЗА ЗАГОЛОВОК ----------
     do
         local startPos
         InputMgr.Bind(titleBar, {
@@ -5078,7 +4978,6 @@ local function CreateWindow(config)
         })
     end
 
-    -- ---------- ВКЛАДКИ ----------
     local tabs = {}
     local tabOrder = {}
     local tabButtons = {}
@@ -5243,7 +5142,6 @@ local function CreateWindow(config)
         return tab
     end
 
-    -- поиск по вкладкам
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         local query = string.lower(Trim(searchBox.Text))
         for name, button in pairs(tabButtons) do
@@ -5256,11 +5154,10 @@ local function CreateWindow(config)
     function Window:SelectTab(name) SelectTab(name) end
     function Window:GetTabs() return tabs end
 
-    -- ---------- ОТКРЫТИЕ / ЗАКРЫТИЕ ----------
     local hasCanvasGroup = (windowClass == "CanvasGroup")
     local menuOpen = false
     local openToken = 0
-    local ApplyBlur -- объявлено заранее, тело ниже
+    local ApplyBlur
 
     local function ApplyMasterTransparency()
         if hasCanvasGroup and menuOpen then
@@ -5307,7 +5204,6 @@ local function CreateWindow(config)
     function Window:Close() Window:Toggle(false) end
     function Window:IsOpen() return menuOpen end
 
-    -- ---------- РАЗМЫТИЕ ФОНА ----------
     local blurEffect
     local blurEnabled = config.Blur == true
     ApplyBlur = function()
@@ -5335,7 +5231,6 @@ local function CreateWindow(config)
         end
     end
 
-    -- ---------- КЛАВИША ОТКРЫТИЯ ----------
     local toggleConn = UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
         if ActiveKeybindCapture then return end
@@ -5348,7 +5243,6 @@ local function CreateWindow(config)
     function Window:SetToggleKey(key) toggleKey = key end
     function Window:GetToggleKey() return toggleKey end
 
-    -- ---------- ПОДСКАЗКИ ----------
     local tooltip = New("Frame", {
         Name = "Tooltip",
         BackgroundTransparency = 1,
@@ -5403,7 +5297,6 @@ local function CreateWindow(config)
         end)
     end
 
-    -- ---------- УВЕДОМЛЕНИЯ ----------
     local notifyHolder = New("Frame", {
         Name = "NotifyHolder",
         BackgroundTransparency = 1,
@@ -5483,7 +5376,7 @@ local function CreateWindow(config)
             TextSize = 14,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
-            Text = kind.Icon .. "  " .. tostring(cfg.Title or "Уведомление"),
+            Text = kind.Icon .. "  " .. tostring(cfg.Title or "Notification"),
             LayoutOrder = 1,
             ZIndex = 802,
             Parent = card,
@@ -5509,7 +5402,6 @@ local function CreateWindow(config)
             Theme.Fade(bodyLabel, "TextTransparency", 0, "Text")
         end
 
-        -- полоска таймера
         local timerTrack = New("Frame", {
             Size = UDim2.new(1, 0, 0, 2),
             BorderSizePixel = 0,
@@ -5565,7 +5457,6 @@ local function CreateWindow(config)
         return { Dismiss = Dismiss, Instance = card }
     end
 
-    -- ---------- ДИАЛОГИ ----------
     function Window:Dialog(cfg)
         cfg = cfg or {}
         local backdrop = New("TextButton", {
@@ -5610,7 +5501,7 @@ local function CreateWindow(config)
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             TextColor3 = Theme.Colors.Text,
-            Text = tostring(cfg.Title or "Подтверждение"),
+            Text = tostring(cfg.Title or "Confirm"),
             LayoutOrder = 1,
             ZIndex = 952,
             Parent = card,
@@ -5687,7 +5578,7 @@ local function CreateWindow(config)
         end
 
         local buttons = cfg.Buttons or {
-            { Text = "Отмена", Style = "Ghost" },
+            { Text = "Cancel", Style = "Ghost" },
             { Text = "OK", Style = "Primary", Callback = cfg.Callback },
         }
 
@@ -5741,8 +5632,8 @@ local function CreateWindow(config)
             Title = title,
             Text = text,
             Buttons = {
-                { Text = "Нет", Style = "Ghost", Callback = onNo },
-                { Text = "Да", Style = "Primary", Callback = onYes },
+                { Text = "No", Style = "Ghost", Callback = onNo },
+                { Text = "Yes", Style = "Primary", Callback = onYes },
             },
         })
     end
@@ -5753,13 +5644,12 @@ local function CreateWindow(config)
             Input = true,
             Placeholder = placeholder,
             Buttons = {
-                { Text = "Отмена", Style = "Ghost" },
+                { Text = "Cancel", Style = "Ghost" },
                 { Text = "OK", Style = "Primary", Callback = callback },
             },
         })
     end
 
-    -- ---------- ВНЕШНИЙ ВИД: API ----------
     function Window:SetAccentColor(color)
         Theme.SetAccent(color)
         return self
@@ -5772,7 +5662,6 @@ local function CreateWindow(config)
     end
     Window.SetTheme = Window.SetPalette
 
-    -- Прозрачность всего меню сразу (фон + текст + обводка)
     function Window:SetMasterTransparency(value)
         masterAlpha = Clamp01(value)
         ApplyMasterTransparency()
@@ -5800,7 +5689,6 @@ local function CreateWindow(config)
     end
     function Window:GetFloatTransparency() return Theme.GetAlpha("Float") end
 
-    -- ---------- РАЗМЕР ----------
     function Window:SetSize(width, height, animate)
         if typeof(width) == "UDim2" then
             animate = height
@@ -5866,7 +5754,6 @@ local function CreateWindow(config)
         return self
     end
 
-    -- ---------- ПЛАВАЮЩИЕ КНОПКИ ----------
     local floatingGuis = {}
     local floatingButtons = {}
 
@@ -6027,7 +5914,7 @@ local function CreateWindow(config)
         function handle:AddSizeSlider(tab, sliderCfg)
             sliderCfg = sliderCfg or {}
             return tab:AddSlider({
-                Name = sliderCfg.Name or "Размер кнопки",
+                Name = sliderCfg.Name or "Button size",
                 Min = sliderCfg.Min or minSize,
                 Max = sliderCfg.Max or maxSize,
                 Default = size,
@@ -6049,7 +5936,6 @@ local function CreateWindow(config)
     function Window:AddFloatingToggle(cfg) return CreateFloatingButton(cfg, true) end
     function Window:GetFloatingButtons() return floatingButtons end
 
-    -- Главная кнопка открытия меню
     local openButton = CreateFloatingButton({
         Text = logoText,
         Size = config.OpenButtonSize or 52,
@@ -6063,7 +5949,6 @@ local function CreateWindow(config)
     function Window:SetOpenButtonVisible(value) openButton:SetVisible(value) end
     function Window:SetOpenButtonSize(px) openButton:SetSize(px) end
 
-    -- ---------- ВАТЕРМАРКА ----------
     local watermark, watermarkConn
     function Window:Watermark(cfg)
         cfg = cfg or {}
@@ -6162,7 +6047,6 @@ local function CreateWindow(config)
         end
     end
 
-    -- ---------- КОНФИГИ ----------
     local configFolder = config.ConfigFolder or ("LurkUI/" .. windowName)
 
     local function EnsureFolder()
@@ -6262,9 +6146,9 @@ local function CreateWindow(config)
 
     function Window:SaveConfig(name)
         name = Trim(name or "default")
-        if name == "" then return false, "Пустое имя" end
-        if not FS.Enabled then return false, "Экзекутор не поддерживает запись файлов" end
-        if not EnsureFolder() then return false, "Не удалось создать папку" end
+        if name == "" then return false, "Empty name" end
+        if not FS.Enabled then return false, "Executor does not support writing files" end
+        if not EnsureFolder() then return false, "Could not create folder" end
         local ok, err = pcall(function()
             FS.Write(configFolder .. "/" .. name .. ".json", HttpService:JSONEncode(CollectState()))
         end)
@@ -6273,10 +6157,10 @@ local function CreateWindow(config)
 
     function Window:LoadConfig(name)
         name = Trim(name or "default")
-        if not FS.Enabled then return false, "Экзекутор не поддерживает чтение файлов" end
+        if not FS.Enabled then return false, "Executor does not support reading files" end
         local path = configFolder .. "/" .. name .. ".json"
         local ok, result = pcall(function()
-            if not FS.IsFile(path) then error("Конфиг не найден") end
+            if not FS.IsFile(path) then error("Config not found") end
             return HttpService:JSONDecode(FS.Read(path))
         end)
         if not ok then return false, result end
@@ -6308,91 +6192,87 @@ local function CreateWindow(config)
     function Window:GetState() return CollectState() end
     function Window:SetState(data) ApplyState(data) end
 
-    -- ---------- ВКЛАДКА НАСТРОЕК ----------
     function Window:AddSettingsTab(name, options)
-        local tab = Window:AddTab(name or "Настройки", options or { Icon = "\u{2699}" })
+        local tab = Window:AddTab(name or "Settings", options or { Icon = "\u{2699}" })
 
-        -- Внешний вид
-        local look = tab:AddGroup({ Name = "Внешний вид", Open = true })
+        local look = tab:AddGroup({ Name = "Appearance", Open = true })
         look:AddColorPicker({
-            Name = "Цвет акцента",
+            Name = "Accent color",
             Default = Theme.Colors.Accent,
-            Tooltip = "Основной цвет всего интерфейса",
+            Tooltip = "Primary color for the whole interface",
             Callback = function(color) Theme.SetAccent(color) end,
         })
         look:AddDropdown({
-            Name = "Тема",
+            Name = "Theme",
             Options = Theme.PaletteList(),
             Default = Theme.PaletteName,
             Callback = function(value) Theme.SetPalette(value) end,
         })
 
-        -- Прозрачность
-        local alpha = tab:AddGroup({ Name = "Прозрачность", Open = true })
+        local alpha = tab:AddGroup({ Name = "Transparency", Open = true })
         alpha:AddSlider({
-            Name = "Всё меню",
+            Name = "Whole menu",
             Min = 0, Max = 100, Step = 1, Suffix = "%",
             Default = math.floor(masterAlpha * 100),
-            Tooltip = "Прозрачность окна целиком",
+            Tooltip = "Transparency of the entire window",
             Callback = function(value) Window:SetMasterTransparency(value / 100) end,
         })
         alpha:AddSlider({
-            Name = "Фон",
+            Name = "Background",
             Min = 0, Max = 100, Step = 1, Suffix = "%",
             Default = math.floor(Theme.GetAlpha("Fill") * 100),
             Callback = function(value) Window:SetTransparency(value / 100) end,
         })
         alpha:AddSlider({
-            Name = "Текст",
+            Name = "Text",
             Min = 0, Max = 90, Step = 1, Suffix = "%",
             Default = math.floor(Theme.GetAlpha("Text") * 100),
             Callback = function(value) Window:SetTextTransparency(value / 100) end,
         })
         alpha:AddSlider({
-            Name = "Обводка",
+            Name = "Stroke",
             Min = 0, Max = 100, Step = 1, Suffix = "%",
             Default = math.floor(Theme.GetAlpha("Stroke") * 100),
             Callback = function(value) Window:SetStrokeTransparency(value / 100) end,
         })
         alpha:AddSlider({
-            Name = "Плавающие кнопки",
+            Name = "Floating buttons",
             Min = 0, Max = 100, Step = 1, Suffix = "%",
             Default = math.floor(Theme.GetAlpha("Float") * 100),
-            Tooltip = "Прозрачность круглой кнопки и всех плавающих кнопок",
+            Tooltip = "Transparency of the round button and all floating buttons",
             Callback = function(value) Window:SetFloatTransparency(value / 100) end,
         })
 
-        -- Размер
-        local sizeGroup = tab:AddGroup({ Name = "Размер и масштаб", Open = true })
+        local sizeGroup = tab:AddGroup({ Name = "Size and scale", Open = true })
         sizeGroup:AddSlider({
-            Name = "Ширина",
+            Name = "Width",
             Min = minWidth, Max = maxWidth, Step = 5,
             Default = baseWidth,
             Callback = function(value) Window:SetSize(value, baseHeight, false) end,
         })
         sizeGroup:AddSlider({
-            Name = "Высота",
+            Name = "Height",
             Min = minHeight, Max = maxHeight, Step = 5,
             Default = baseHeight,
             Callback = function(value) Window:SetSize(baseWidth, value, false) end,
         })
         sizeGroup:AddSlider({
-            Name = "Масштаб",
+            Name = "Scale",
             Min = 50, Max = 200, Step = 5, Suffix = "%",
             Default = math.floor(baseScale * 100),
-            Tooltip = "Увеличивает всё меню целиком",
+            Tooltip = "Scales the entire menu",
             Callback = function(value) Window:SetScale(value / 100, false) end,
         })
         sizeGroup:AddSlider({
-            Name = "Кнопка меню",
+            Name = "Menu button",
             Min = 32, Max = 140, Step = 2,
             Default = openButton:GetSize(),
             Callback = function(value) openButton:SetSize(value) end,
         })
         sizeGroup:AddDoubleButton({
-            Left = { Name = "По центру", Callback = function() Window:Center() end },
+            Left = { Name = "Center", Callback = function() Window:Center() end },
             Right = {
-                Name = "Сброс",
+                Name = "Reset",
                 Style = "Ghost",
                 Callback = function()
                     Window:SetSize(480, 360)
@@ -6402,59 +6282,57 @@ local function CreateWindow(config)
             },
         })
 
-        -- Поведение
-        local behavior = tab:AddGroup({ Name = "Поведение", Open = false })
+        local behavior = tab:AddGroup({ Name = "Behavior", Open = false })
         behavior:AddKeybind({
-            Name = "Клавиша меню",
+            Name = "Menu key",
             Default = toggleKey,
             OnBind = function(key) toggleKey = key end,
             Callback = function() end,
         })
         behavior:AddSlider({
-            Name = "Скорость анимаций",
+            Name = "Animation speed",
             Min = 25, Max = 250, Step = 5, Suffix = "%",
             Default = 100,
             Callback = function(value) Window:SetAnimationSpeed(value / 100) end,
         })
         behavior:AddToggle({
-            Name = "Звук нажатий",
+            Name = "Click sound",
             Default = soundEnabled,
             Callback = function(value) soundEnabled = value end,
         })
         behavior:AddToggle({
-            Name = "Размытие фона",
+            Name = "Background blur",
             Default = blurEnabled,
-            Tooltip = "Размывает игру, пока меню открыто",
+            Tooltip = "Blurs the game while the menu is open",
             Callback = function(value) Window:SetBlur(value) end,
         })
         behavior:AddToggle({
-            Name = "Ватермарка",
+            Name = "Watermark",
             Default = watermark ~= nil,
             Callback = function(value) Window:SetWatermarkVisible(value) end,
         })
         behavior:AddToggle({
-            Name = "Кнопка открытия",
+            Name = "Open button",
             Default = true,
             Callback = function(value) openButton:SetVisible(value) end,
         })
 
-        -- Конфиги
-        local configGroup = tab:AddGroup({ Name = "Конфиги", Open = false })
+        local configGroup = tab:AddGroup({ Name = "Configs", Open = false })
         if not FS.Enabled then
             configGroup:AddParagraph({
-                Title = "Недоступно",
-                Text = "Твой экзекутор не поддерживает writefile/readfile, поэтому конфиги сохранить нельзя.",
+                Title = "Unavailable",
+                Text = "Your executor does not support writefile/readfile, so configs cannot be saved.",
             })
         else
             local nameBox = configGroup:AddInput({
-                Name = "Имя конфига",
+                Name = "Config name",
                 Placeholder = "default",
-                Button = "Сохранить",
+                Button = "Save",
                 Callback = function(text)
                     local ok, err = Window:SaveConfig(text ~= "" and text or "default")
                     Window:Notify({
-                        Title = ok and "Сохранено" or "Ошибка",
-                        Content = ok and ("Конфиг: " .. (text ~= "" and text or "default")) or tostring(err),
+                        Title = ok and "Saved" or "Error",
+                        Content = ok and ("Config: " .. (text ~= "" and text or "default")) or tostring(err),
                         Type = ok and "Success" or "Error",
                     })
                 end,
@@ -6462,46 +6340,46 @@ local function CreateWindow(config)
 
             local listDropdown
             listDropdown = configGroup:AddDropdown({
-                Name = "Сохранённые",
+                Name = "Saved configs",
                 Options = Window:ListConfigs(),
-                Placeholder = "Нет конфигов",
+                Placeholder = "No configs",
                 Callback = function() end,
             })
 
             configGroup:AddDoubleButton({
                 Left = {
-                    Name = "Загрузить",
+                    Name = "Load",
                     Callback = function()
                         local selected = listDropdown.Get()
                         if not selected then
-                            Window:Notify({ Title = "Выбери конфиг", Type = "Warning" })
+                            Window:Notify({ Title = "Select a config", Type = "Warning" })
                             return
                         end
                         local ok, err = Window:LoadConfig(selected)
                         Window:Notify({
-                            Title = ok and "Загружено" or "Ошибка",
+                            Title = ok and "Loaded" or "Error",
                             Content = ok and selected or tostring(err),
                             Type = ok and "Success" or "Error",
                         })
                     end,
                 },
                 Right = {
-                    Name = "Удалить",
+                    Name = "Delete",
                     Style = "Danger",
                     Callback = function()
                         local selected = listDropdown.Get()
                         if not selected then return end
-                        Window:Confirm("Удалить конфиг?", selected, function()
+                        Window:Confirm("Delete config?", selected, function()
                             Window:DeleteConfig(selected)
                             listDropdown.SetOptions(Window:ListConfigs())
-                            Window:Notify({ Title = "Удалено", Content = selected, Type = "Info" })
+                            Window:Notify({ Title = "Deleted", Content = selected, Type = "Info" })
                         end)
                     end,
                 },
             })
 
             configGroup:AddButton({
-                Name = "Обновить список",
+                Name = "Refresh list",
                 Style = "Ghost",
                 Callback = function()
                     listDropdown.SetOptions(Window:ListConfigs())
@@ -6512,7 +6390,6 @@ local function CreateWindow(config)
         return tab
     end
 
-    -- ---------- ЗАКРЫТИЕ / СВОРАЧИВАНИЕ ----------
     TitleButton("\u{2013}", -40, "Warn", function()
         Window:Toggle(false)
     end)
@@ -6537,7 +6414,6 @@ local function CreateWindow(config)
         ScreenGui:Destroy()
     end
 
-    -- ---------- СТАРТ ----------
     Theme.Changed:Connect(function()
         ApplyMasterTransparency()
     end)
@@ -6546,7 +6422,7 @@ local function CreateWindow(config)
         Window:Watermark(typeof(config.Watermark) == "table" and config.Watermark or {})
     end
     if config.Settings ~= false then
-        -- вкладка настроек добавляется вручную через Window:AddSettingsTab()
+
     end
     if masterAlpha > 0 then ApplyMasterTransparency() end
 
@@ -6557,10 +6433,6 @@ local function CreateWindow(config)
 
     return Window
 end
-
--- ==========================================================================
--- 11. ТОЧКА ВХОДА
--- ==========================================================================
 
 local Lurk = {}
 Lurk.Version = "2.0"
