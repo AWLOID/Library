@@ -167,8 +167,18 @@ local function ViewportSize()
     return Vector2.new(1280, 720)
 end
 
+local SHARP = true
+
 local function Corner(inst, radius)
-    return New("UICorner", { CornerRadius = UDim.new(0, radius or 6), Parent = inst })
+    radius = radius or 6
+    if SHARP then
+        if radius >= 100 then
+            radius = 999
+        elseif radius > 4 then
+            radius = 0
+        end
+    end
+    return New("UICorner", { CornerRadius = UDim.new(0, radius), Parent = inst })
 end
 
 local function Padding(inst, top, bottom, left, right)
@@ -429,19 +439,21 @@ Anim.Hover = Hover
 
 local PALETTES = {
     Dark = {
-        Base     = Color3.fromRGB(10, 10, 12),
-        Surface  = Color3.fromRGB(18, 18, 21),
-        Surface2 = Color3.fromRGB(26, 26, 30),
-        Surface3 = Color3.fromRGB(34, 34, 39),
-        Border   = Color3.fromRGB(48, 48, 54),
-        Text     = Color3.fromRGB(235, 235, 240),
-        SubText  = Color3.fromRGB(150, 150, 160),
-        Muted    = Color3.fromRGB(105, 105, 115),
-        Good     = Color3.fromRGB(80, 200, 120),
-        Warn     = Color3.fromRGB(240, 180, 60),
-        Bad      = Color3.fromRGB(235, 75, 75),
+        Base     = Color3.fromRGB(12, 12, 12),
+        Bevel    = Color3.fromRGB(40, 40, 40),
+        Surface  = Color3.fromRGB(20, 20, 20),
+        Surface2 = Color3.fromRGB(16, 16, 16),
+        Surface3 = Color3.fromRGB(30, 30, 30),
+        Border   = Color3.fromRGB(60, 60, 60),
+        Text     = Color3.fromRGB(200, 200, 200),
+        SubText  = Color3.fromRGB(170, 170, 170),
+        Muted    = Color3.fromRGB(120, 120, 120),
+        Good     = Color3.fromRGB(90, 200, 110),
+        Warn     = Color3.fromRGB(235, 180, 70),
+        Bad      = Color3.fromRGB(235, 70, 70),
     },
     Midnight = {
+        Bevel    = Color3.fromRGB(38, 44, 68),
         Base     = Color3.fromRGB(9, 11, 20),
         Surface  = Color3.fromRGB(16, 19, 33),
         Surface2 = Color3.fromRGB(23, 27, 45),
@@ -455,6 +467,7 @@ local PALETTES = {
         Bad      = Color3.fromRGB(240, 90, 110),
     },
     Light = {
+        Bevel    = Color3.fromRGB(210, 213, 222),
         Base     = Color3.fromRGB(238, 239, 243),
         Surface  = Color3.fromRGB(248, 249, 252),
         Surface2 = Color3.fromRGB(232, 234, 240),
@@ -468,6 +481,7 @@ local PALETTES = {
         Bad      = Color3.fromRGB(210, 55, 60),
     },
     Mono = {
+        Bevel    = Color3.fromRGB(45, 45, 45),
         Base     = Color3.fromRGB(0, 0, 0),
         Surface  = Color3.fromRGB(14, 14, 14),
         Surface2 = Color3.fromRGB(22, 22, 22),
@@ -486,7 +500,7 @@ local function CreateTheme(config)
     local T = {}
     T.PaletteName = config.Palette or "Dark"
     T.Colors = table.clone(PALETTES[T.PaletteName] or PALETTES.Dark)
-    T.Colors.Accent = config.AccentColor or Color3.fromRGB(255, 45, 65)
+    T.Colors.Accent = config.AccentColor or Color3.fromRGB(255, 30, 30)
 
     T.Alpha = {
         Fill   = config.Transparency or 0,
@@ -4582,10 +4596,11 @@ end
 local function CreateWindow(config)
     config = config or {}
 
+    SHARP = config.Rounded ~= true
     local windowName   = config.Name or "Lurk"
     local subtitle     = config.Subtitle or "v2.0"
-    local baseWidth    = 480
-    local baseHeight   = 360
+    local baseWidth    = 430
+    local baseHeight   = 320
     if config.Size then
         baseWidth  = config.Size.X.Offset > 0 and config.Size.X.Offset or baseWidth
         baseHeight = config.Size.Y.Offset > 0 and config.Size.Y.Offset or baseHeight
@@ -4598,8 +4613,8 @@ local function CreateWindow(config)
     local maxWidth  = config.MaxWidth or 1100
     local maxHeight = config.MaxHeight or 800
 
-    local sidebarWidth = config.SidebarWidth or 124
-    local logoText     = config.LogoText or string.sub(windowName, 1, 1)
+    local sidebarWidth = config.SidebarWidth or 108
+    local logoText     = config.LogoText or config.OpenButtonText or string.sub(windowName, 1, 1)
     local toggleKey    = config.ToggleKey or Enum.KeyCode.RightShift
 
     local existing = GuiParent:FindFirstChild("LurkGui_" .. windowName)
@@ -4673,91 +4688,73 @@ local function CreateWindow(config)
     })
     Theme.Paint(mainWindow, "BackgroundColor3", "Base")
     local windowFade = Theme.Fade(mainWindow, "BackgroundTransparency", 0, "Fill")
-    Corner(mainWindow, 10)
 
     local windowScale = New("UIScale", { Scale = config.Scale or 1, Parent = mainWindow })
     local baseScale = config.Scale or 1
     local masterAlpha = config.MasterTransparency or 0
 
-    local windowStroke = New("UIStroke", { Thickness = 1.4, Parent = mainWindow })
-    Theme.Paint(windowStroke, "Color", "Accent")
-    Theme.Fade(windowStroke, "Transparency", 0.45, "Stroke")
+    local function AddLayer(parent, inset, role, zOffset)
+        local layer = New("Frame", {
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(inset, inset),
+            Size = UDim2.new(1, -inset * 2, 1, -inset * 2),
+            ZIndex = parent.ZIndex + (zOffset or 1),
+            Parent = parent,
+        })
+        Theme.Paint(layer, "BackgroundColor3", role)
+        Theme.Fade(layer, "BackgroundTransparency", 0, "Fill")
+        return layer
+    end
 
-    local innerGlow = New("Frame", {
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 1,
-        ZIndex = 2,
-        Parent = mainWindow,
-    })
-    Corner(innerGlow, 9)
-    local innerStroke = New("UIStroke", { Thickness = 1, Parent = innerGlow })
-    Theme.Paint(innerStroke, "Color", "Surface3")
-    Theme.Fade(innerStroke, "Transparency", 0.4, "Stroke")
+    AddLayer(mainWindow, 1, "Border", 1)
+    local bg1 = AddLayer(mainWindow, 2, "Bevel", 2)
+    AddLayer(bg1, 3, "Border", 1)
+    local bg2 = AddLayer(bg1, 4, "Base", 2)
 
     local titleBar = New("Frame", {
         Name = "TitleBar",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 38),
-        ZIndex = 4,
-        Parent = mainWindow,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(6, 6),
+        Size = UDim2.new(1, -12, 0, 24),
+        ZIndex = bg2.ZIndex + 1,
+        Parent = bg2,
     })
+    Theme.Paint(titleBar, "BackgroundColor3", "Surface2")
+    Theme.Fade(titleBar, "BackgroundTransparency", 0, "Fill")
 
     local titleText = New("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(16, 0),
-        Size = UDim2.new(1, -120, 1, 0),
+        Size = UDim2.fromScale(1, 1),
         Font = Enum.Font.GothamBold,
-        TextSize = 16,
-        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 15,
         Text = windowName,
-        ZIndex = 5,
+        ZIndex = titleBar.ZIndex + 1,
         Parent = titleBar,
     })
-    Theme.Paint(titleText, "TextColor3", "Text")
+    Theme.Paint(titleText, "TextColor3", "Accent")
     Theme.Fade(titleText, "TextTransparency", 0, "Text")
-
-    local subtitleText = New("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(16, 20),
-        Size = UDim2.new(1, -120, 0, 14),
-        Font = Enum.Font.Gotham,
-        TextSize = 11,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = subtitle,
-        ZIndex = 5,
-        Parent = titleBar,
-    })
-    Theme.Paint(subtitleText, "TextColor3", "Muted")
-    Theme.Fade(subtitleText, "TextTransparency", 0, "Text")
 
     local function TitleButton(text, offsetX, color, callback)
         local btn = New("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, offsetX, 0.5, 0),
-            Size = UDim2.fromOffset(22, 22),
+            Size = UDim2.fromOffset(18, 18),
             BackgroundTransparency = 1,
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
             Text = text,
-            ZIndex = 6,
+            ZIndex = titleBar.ZIndex + 2,
             Parent = titleBar,
         })
         Theme.Paint(btn, "TextColor3", "Muted")
         Theme.Fade(btn, "TextTransparency", 0, "Text")
-        Corner(btn, 6)
         Anim.Hover(btn, function()
             Tween(btn, {
                 TextColor3 = color and Theme.Colors[color] or Theme.Colors.Text,
-                BackgroundTransparency = Theme.Eff(0.85, "Fill"),
-                BackgroundColor3 = color and Theme.Colors[color] or Theme.Colors.Surface3,
             }, 0.14, "Fast")
         end, function()
-            Tween(btn, {
-                TextColor3 = Theme.Colors.Muted,
-                BackgroundTransparency = 1,
-            }, 0.18, "Fast")
+            Tween(btn, { TextColor3 = Theme.Colors.Muted }, 0.18, "Fast")
         end)
         btn.MouseButton1Click:Connect(callback)
         return btn
@@ -4765,126 +4762,146 @@ local function CreateWindow(config)
 
     local sidebar = New("Frame", {
         Name = "Sidebar",
-        Position = UDim2.fromOffset(8, 42),
-        Size = UDim2.new(0, sidebarWidth, 1, -50),
         BorderSizePixel = 0,
-        ZIndex = 3,
-        Parent = mainWindow,
+        Position = UDim2.fromOffset(6, 33),
+        Size = UDim2.new(0, sidebarWidth - 6, 1, -39),
+        ZIndex = bg2.ZIndex + 1,
+        Parent = bg2,
     })
     Theme.Paint(sidebar, "BackgroundColor3", "Surface")
-    Theme.Fade(sidebar, "BackgroundTransparency", 0.15, "Fill")
-    Corner(sidebar, 8)
-    local sidebarStroke = New("UIStroke", { Thickness = 1, Parent = sidebar })
-    Theme.Paint(sidebarStroke, "Color", "Border")
-    Theme.Fade(sidebarStroke, "Transparency", 0.5, "Stroke")
+    Theme.Fade(sidebar, "BackgroundTransparency", 0, "Fill")
 
-    local logoHolder = New("Frame", {
+    AddLayer(sidebar, 1, "Bevel", 1)
+    local sidebarInner = AddLayer(sidebar, 2, "Base", 2)
+
+    local logoGlow = New("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 44),
-        ZIndex = 4,
-        Parent = sidebar,
+        Position = UDim2.fromOffset(0, 6),
+        Size = UDim2.new(1, 0, 0, 48),
+        Font = Enum.Font.GothamBlack,
+        TextSize = 42,
+        Text = logoText,
+        ZIndex = sidebarInner.ZIndex + 1,
+        Parent = sidebarInner,
     })
+    Theme.Paint(logoGlow, "TextColor3", "Accent")
+    Theme.Fade(logoGlow, "TextTransparency", 0.7, "Text")
+
     local logoLabel = New("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.fromOffset(0, 6),
+        Size = UDim2.new(1, 0, 0, 48),
         Font = Enum.Font.GothamBlack,
-        TextSize = 26,
+        TextSize = 36,
         Text = logoText,
-        ZIndex = 5,
-        Parent = logoHolder,
+        ZIndex = sidebarInner.ZIndex + 2,
+        Parent = sidebarInner,
     })
-    Theme.Paint(logoLabel, "TextColor3", "Accent")
+    Theme.Paint(logoLabel, "TextColor3", "Text")
     Theme.Fade(logoLabel, "TextTransparency", 0, "Text")
 
+    local subtitleText = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(0, 54),
+        Size = UDim2.new(1, 0, 0, 12),
+        Font = Enum.Font.Gotham,
+        TextSize = 10,
+        Text = subtitle,
+        ZIndex = sidebarInner.ZIndex + 2,
+        Parent = sidebarInner,
+    })
+    Theme.Paint(subtitleText, "TextColor3", "Muted")
+    Theme.Fade(subtitleText, "TextTransparency", 0, "Text")
+
     local searchFrame = New("Frame", {
-        Position = UDim2.fromOffset(8, 44),
-        Size = UDim2.new(1, -16, 0, 24),
+        Position = UDim2.fromOffset(8, 72),
+        Size = UDim2.new(1, -16, 0, 18),
         BorderSizePixel = 0,
-        ZIndex = 4,
-        Parent = sidebar,
+        ZIndex = sidebarInner.ZIndex + 1,
+        Parent = sidebarInner,
     })
     Theme.Paint(searchFrame, "BackgroundColor3", "Surface2")
-    Theme.Fade(searchFrame, "BackgroundTransparency", 0.2, "Fill")
-    Corner(searchFrame, 6)
+    Theme.Fade(searchFrame, "BackgroundTransparency", 0, "Fill")
+    local searchStroke = New("UIStroke", { Thickness = 1, Parent = searchFrame })
+    Theme.Paint(searchStroke, "Color", "Border")
+    Theme.Fade(searchStroke, "Transparency", 0, "Stroke")
+
     local searchBox = New("TextBox", {
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(8, 0),
-        Size = UDim2.new(1, -14, 1, 0),
+        Position = UDim2.fromOffset(6, 0),
+        Size = UDim2.new(1, -10, 1, 0),
         Font = Enum.Font.Gotham,
-        TextSize = 12,
+        TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
         PlaceholderText = "Search...",
         Text = "",
         ClearTextOnFocus = false,
-        ZIndex = 5,
+        ZIndex = searchFrame.ZIndex + 1,
         Parent = searchFrame,
     })
     Theme.Paint(searchBox, "TextColor3", "Text")
     Theme.Paint(searchBox, "PlaceholderColor3", "Muted")
     Theme.Fade(searchBox, "TextTransparency", 0, "Text")
 
+    searchBox.Focused:Connect(function()
+        Tween(searchStroke, { Color = Theme.Colors.Accent }, 0.16, "Fast")
+    end)
+    searchBox.FocusLost:Connect(function()
+        Tween(searchStroke, { Color = Theme.Colors.Border }, 0.2, "Fast")
+    end)
+
     local tabsHolder = New("ScrollingFrame", {
         Name = "TabsHolder",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(6, 74),
-        Size = UDim2.new(1, -12, 1, -80),
+        Position = UDim2.fromOffset(8, 98),
+        Size = UDim2.new(1, -16, 1, -106),
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         ScrollingDirection = Enum.ScrollingDirection.Y,
         ScrollBarThickness = 0,
-        ZIndex = 4,
-        Parent = sidebar,
+        ZIndex = sidebarInner.ZIndex + 1,
+        Parent = sidebarInner,
     })
-    ListLayout(tabsHolder, 4)
+    ListLayout(tabsHolder, 6)
 
     local content = New("Frame", {
         Name = "Content",
-        Position = UDim2.fromOffset(sidebarWidth + 14, 42),
-        Size = UDim2.new(1, -(sidebarWidth + 22), 1, -50),
         BorderSizePixel = 0,
-        ZIndex = 3,
-        Parent = mainWindow,
+        Position = UDim2.fromOffset(sidebarWidth, 33),
+        Size = UDim2.new(1, -sidebarWidth - 9, 1, -39),
+        ZIndex = bg2.ZIndex + 1,
+        Parent = bg2,
     })
-    Theme.Paint(content, "BackgroundColor3", "Surface")
-    Theme.Fade(content, "BackgroundTransparency", 0.15, "Fill")
-    Corner(content, 8)
-    local contentStroke = New("UIStroke", { Thickness = 1, Parent = content })
-    Theme.Paint(contentStroke, "Color", "Border")
-    Theme.Fade(contentStroke, "Transparency", 0.5, "Stroke")
+    Theme.Paint(content, "BackgroundColor3", "Base")
+    Theme.Fade(content, "BackgroundTransparency", 0, "Fill")
+
+    AddLayer(content, 1, "Bevel", 1)
+    local contentInner = AddLayer(content, 2, "Surface3", 2)
 
     local tabTitle = New("TextLabel", {
+        Name = "TabTitle",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(14, 8),
-        Size = UDim2.new(1, -28, 0, 20),
+        Position = UDim2.fromOffset(16, 8),
+        Size = UDim2.new(1, -32, 0, 24),
         Font = Enum.Font.GothamBold,
-        TextSize = 15,
+        TextSize = 17,
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = "",
-        ZIndex = 4,
-        Parent = content,
+        ZIndex = contentInner.ZIndex + 1,
+        Parent = contentInner,
     })
     Theme.Paint(tabTitle, "TextColor3", "Text")
     Theme.Fade(tabTitle, "TextTransparency", 0, "Text")
 
-    local headerLine = New("Frame", {
-        Position = UDim2.fromOffset(14, 30),
-        Size = UDim2.new(1, -28, 0, 1),
-        BorderSizePixel = 0,
-        ZIndex = 4,
-        Parent = content,
-    })
-    Theme.Paint(headerLine, "BackgroundColor3", "Border")
-    Theme.Fade(headerLine, "BackgroundTransparency", 0.4, "Stroke")
-
     local pageHolder = New("Frame", {
         Name = "PageHolder",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 34),
+        Position = UDim2.fromOffset(12, 36),
         Size = UDim2.new(1, -24, 1, -42),
         ClipsDescendants = true,
-        ZIndex = 4,
-        Parent = content,
+        ZIndex = contentInner.ZIndex + 1,
+        Parent = contentInner,
     })
 
     ctx.PageHolder = pageHolder
@@ -5002,15 +5019,8 @@ local function CreateWindow(config)
         for tabName, button in pairs(tabButtons) do
             local active = tabName == name
             Tween(button.Label, {
-                TextColor3 = active and Theme.Colors.Text or Theme.Colors.Muted,
+                TextColor3 = active and Theme.Colors.Accent or Theme.Colors.Text,
             }, 0.16, "Fast")
-            Tween(button.Frame, {
-                BackgroundTransparency = active and Theme.Eff(0.12, "Fill") or Theme.Eff(1, "Fill"),
-                BackgroundColor3 = active and Theme.Colors.Surface3 or Theme.Colors.Surface2,
-            }, 0.16, "Fast")
-            Tween(button.Indicator, {
-                Size = active and UDim2.fromOffset(3, 16) or UDim2.fromOffset(3, 0),
-            }, 0.2, "Snap")
             if button.Icon then
                 Tween(button.Icon, {
                     TextColor3 = active and Theme.Colors.Accent or Theme.Colors.Muted,
@@ -5036,7 +5046,7 @@ local function CreateWindow(config)
 
         local frame = New("Frame", {
             Name = "TabBtn_" .. name,
-            Size = UDim2.new(1, 0, 0, 30),
+            Size = UDim2.new(1, 0, 0, 26),
             BorderSizePixel = 0,
             BackgroundTransparency = 1,
             LayoutOrder = #tabOrder,
@@ -5081,14 +5091,14 @@ local function CreateWindow(config)
             Position = UDim2.fromOffset(textOffset, 0),
             Size = UDim2.new(1, -textOffset - 6, 1, 0),
             Font = Enum.Font.GothamMedium,
-            TextSize = 13,
+            TextSize = 15,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextTruncate = Enum.TextTruncate.AtEnd,
             Text = name,
             ZIndex = 7,
             Parent = frame,
         })
-        Theme.Paint(label, "TextColor3", "Muted")
+        Theme.Paint(label, "TextColor3", "Text")
         Theme.Fade(label, "TextTransparency", 0, "Text")
 
         local button = New("TextButton", {
@@ -5106,13 +5116,11 @@ local function CreateWindow(config)
 
         Anim.Hover(button, function()
             if selectedTab ~= name then
-                Tween(frame, { BackgroundTransparency = Theme.Eff(0.45, "Fill") }, 0.14, "Fast")
-                Tween(label, { TextColor3 = Theme.Colors.SubText }, 0.14, "Fast")
+                Tween(label, { TextColor3 = Theme.Colors.Accent:Lerp(Theme.Colors.Text, 0.45) }, 0.14, "Fast")
             end
         end, function()
             if selectedTab ~= name then
-                Tween(frame, { BackgroundTransparency = 1 }, 0.18, "Fast")
-                Tween(label, { TextColor3 = Theme.Colors.Muted }, 0.18, "Fast")
+                Tween(label, { TextColor3 = Theme.Colors.Text }, 0.18, "Fast")
             end
         end)
 
@@ -5762,7 +5770,7 @@ local function CreateWindow(config)
         local isToggle = forceToggle == true or cfg.Toggle == true
         local minSize = cfg.MinSize or 32
         local maxSize = cfg.MaxSize or 220
-        local size = math.clamp(cfg.Size or 54, minSize, maxSize)
+        local size = math.clamp(cfg.Size or 62, minSize, maxSize)
         local threshold = cfg.DragThreshold or 6
         local state = cfg.Default == true
 
@@ -5792,13 +5800,13 @@ local function CreateWindow(config)
             Parent = gui,
         })
         Theme.Paint(button, "BackgroundColor3", "Surface")
-        local bgFade = Theme.Fade(button, "BackgroundTransparency", cfg.Transparency or 0.1, "Float")
+        local bgFade = Theme.Fade(button, "BackgroundTransparency", cfg.Transparency or 0, "Float")
         Theme.Fade(button, "TextTransparency", 0, "Float")
         Corner(button, cfg.Circle == false and (cfg.Radius or 10) or 999)
 
-        local stroke = New("UIStroke", { Thickness = 1.6, Parent = button })
+        local stroke = New("UIStroke", { Thickness = 1.5, Parent = button })
         Theme.Paint(stroke, "Color", "Accent")
-        local strokeFade = Theme.Fade(stroke, "Transparency", 0.2, "Float")
+        local strokeFade = Theme.Fade(stroke, "Transparency", 0.3, "Float")
         Theme.Paint(button, "TextColor3", "Accent")
 
         local handle = { Instance = button, Gui = gui, Type = "FloatingButton" }
@@ -5812,7 +5820,7 @@ local function CreateWindow(config)
             else
                 Tween(button, { BackgroundColor3 = Theme.Colors.Surface, TextColor3 = Theme.Colors.Accent }, dur, "Fast")
                 stroke.Color = Theme.Colors.Accent
-                strokeFade.SetBase(0.2, animate)
+                strokeFade.SetBase(0.3, animate)
             end
         end
 
@@ -5938,9 +5946,9 @@ local function CreateWindow(config)
 
     local openButton = CreateFloatingButton({
         Text = logoText,
-        Size = config.OpenButtonSize or 52,
-        Position = config.OpenButtonPosition,
-        Transparency = config.OpenButtonTransparency or 0.1,
+        Size = config.OpenButtonSize or 62,
+        Position = config.OpenButtonPosition or UDim2.new(1, -72, 0.5, -31),
+        Transparency = config.OpenButtonTransparency or 0,
         SnapToEdge = config.SnapToEdge == true,
         Callback = function() Window:Toggle() end,
     })
