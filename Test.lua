@@ -246,8 +246,8 @@ function Library.new(config)
 	self._popup = nil
 	self._visible = true
 	self._visibilityToken = 0
-	self._logoGlow = config.LogoGlow ~= false
-	self._mainGlow = config.MainGlow ~= false
+	self._logoGlow = config.LogoGlow == true
+	self._mainGlow = config.MainGlow == true
 
 	local gui = create("ScreenGui", {
 		Name = config.Name or "EvernessUI",
@@ -263,7 +263,7 @@ function Library.new(config)
 		Name = "@alicegang",
 		AnchorPoint = Vector2.new(.5, .5),
 		Position = config.Position or UDim2.fromScale(.5, .5),
-		Size = config.Size or UDim2.fromOffset(680, 460),
+		Size = config.Size or UDim2.fromOffset(640, 430),
 		BackgroundColor3 = self.Theme.Window,
 		BackgroundTransparency = tr(self.Theme.WindowAlpha),
 		BorderSizePixel = 0,
@@ -291,6 +291,7 @@ function Library.new(config)
 		Position = UDim2.fromOffset(-64, -64),
 		Size = UDim2.new(1, 128, 1, 128),
 		ZIndex = -10,
+		Visible = false,
 		Parent = window,
 	})
 	self.Shadow = shadow
@@ -337,7 +338,7 @@ function Library.new(config)
 
 	local logoArea = create("Frame", {
 		Name = "LogoArea",
-		Size = UDim2.fromOffset(180, 80),
+		Size = UDim2.fromOffset(180, 50),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = sidebar,
@@ -381,7 +382,7 @@ function Library.new(config)
 			Parent = logo,
 		})
 	else
-		logo = makeText(logoArea, config.LogoText or "✿", 48, Color3.new(1, 1, 1), {
+		logo = makeText(logoArea, config.LogoText or "", 48, Color3.new(1, 1, 1), {
 			Name = "Logo",
 			Position = UDim2.fromOffset(50, 10),
 			Size = UDim2.fromOffset(80, 80),
@@ -403,8 +404,8 @@ function Library.new(config)
 
 	local navigation = create("ScrollingFrame", {
 		Name = "Tabs",
-		Position = UDim2.fromOffset(0, 80),
-		Size = UDim2.new(1, 0, 1, -80),
+		Position = UDim2.fromOffset(0, 50),
+		Size = UDim2.new(1, 0, 1, -50),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
@@ -1428,6 +1429,7 @@ function Library:_popupFrame(width, height, localPosition)
 		Position = UDim2.fromOffset(-30, -30),
 		Size = UDim2.new(1, 60, 1, 60),
 		ZIndex = 100,
+		Visible = false,
 		Parent = popup,
 	})
 	blocker.MouseButton1Click:Connect(function() self:ClosePopup() end)
