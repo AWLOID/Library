@@ -2,35 +2,6 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
--- Alice/Everness "Solid" palette from themes/themes.cpp. Text is precomposed
--- against the 12,12,12 background; only the large surfaces keep a very light
--- transparency so the interface still feels integrated with the game.
-local Theme = {
-    Accent = Color3.fromRGB(120, 255, 100),
-    Window = Color3.fromRGB(12, 12, 12),
-    Settings = Color3.fromRGB(8, 8, 8),
-    Element = Color3.fromRGB(14, 14, 14),
-    ElementHover = Color3.fromRGB(16, 16, 16),
-    ElementActive = Color3.fromRGB(18, 18, 18),
-    Popup = Color3.fromRGB(14, 14, 14),
-    Outline = Color3.fromRGB(20, 20, 20),
-    Border = Color3.fromRGB(25, 25, 25),
-    Text = Color3.fromRGB(203, 203, 203),
-    TextBright = Color3.fromRGB(255, 255, 255),
-    TextDim = Color3.fromRGB(155, 155, 155),
-    TextUnsafe = Color3.fromRGB(255, 199, 56),
-    Slider = Color3.fromRGB(0, 0, 0),
-    WindowRounding = 12,
-    PopupRounding = 16,
-    ElementRounding = 12,
-    WindowTransparency = 15 / 255,
-    PopupTransparency = 10 / 255,
-}
-
-local DEFAULT_ICON_URL = "https://raw.githubusercontent.com/AWLOID/Obscura/refs/heads/main/icons.lua"
-local IconAtlasCache = {}
-local IconDescriptorCache = setmetatable({}, { __mode = "k" })
-
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -66,130 +37,7 @@ local function NewInstance(className, properties, children)
     for _, child in ipairs(children or {}) do
         child.Parent = inst
     end
-
-    if className == "UIStroke" and (not properties or properties.ApplyStrokeMode == nil) then
-        inst.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    end
-
-    -- Give every standalone control row the same solid surface used by
-    -- Alice/Everness elements. Containers and popup holders stay transparent.
-    if className == "Frame" or className == "CanvasGroup" then
-        local name = tostring(inst.Name)
-        local isElementRow = string.match(name, "^Dropdown_")
-            or string.match(name, "^MultiDropdown_")
-            or string.match(name, "^ColorPicker_")
-            or string.match(name, "^Textbox_")
-            or string.match(name, "^Keybind_")
-            or string.match(name, "^Checkbox_")
-            or string.match(name, "^Switch_")
-            or string.match(name, "^Stepper_")
-            or string.match(name, "^RangeSlider_")
-            or string.match(name, "^ToggleSlider_")
-            or string.match(name, "^SearchableDropdown_")
-            or string.match(name, "^Input_")
-        if isElementRow and properties and properties.BackgroundTransparency == 1 then
-            inst.BackgroundColor3 = Theme.Element
-            inst.BackgroundTransparency = 0
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, Theme.ElementRounding)
-            corner.Parent = inst
-        end
-
-        local isPopupHolder = string.match(name, "^DropdownOptionsHolder_")
-            or string.match(name, "^MultiDropdownOptionsHolder_")
-            or string.match(name, "^SearchableDropdownHolder_")
-        if isPopupHolder then
-            inst.BackgroundTransparency = Theme.PopupTransparency
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, Theme.PopupRounding)
-            corner.Parent = inst
-        end
-    end
     return inst
-end
-
-local function NormalizeIconName(name)
-    if type(name) ~= "string" then return nil end
-    name = string.lower(string.match(name, "^%s*(.-)%s*$") or name)
-    name = string.gsub(name, "[_%s]+", "-")
-    return string.gsub(name, "%-+", "-")
-end
-
-local function LoadIconAtlas(source)
-    if type(source) == "table" then return source end
-    local url = type(source) == "string" and source or DEFAULT_ICON_URL
-    if IconAtlasCache[url] then return IconAtlasCache[url] end
-    local ok, atlas = pcall(function()
-        local sourceCode = game:HttpGet(url)
-        assert(type(sourceCode) == "string" and #sourceCode > 0 and #sourceCode <= 2097152, "invalid icon atlas")
-        local compiler = loadstring
-        assert(type(compiler) == "function", "loadstring is unavailable")
-        local chunk = assert(compiler(sourceCode), "icon atlas compilation failed")
-        return chunk()
-    end)
-    if not ok or type(atlas) ~= "table"
-        or type(atlas["48px"]) ~= "table" and type(atlas["256px"]) ~= "table" then
-        return nil
-    end
-    IconAtlasCache[url] = atlas
-    return atlas
-end
-
-local function ResolveIcon(atlas, name, sheetName)
-    name = NormalizeIconName(name)
-    if not atlas or not name then return nil end
-    local sheetKey = (sheetName == 256 or sheetName == "256px") and "256px" or "48px"
-    local atlasCache = IconDescriptorCache[atlas]
-    if not atlasCache then atlasCache = {}; IconDescriptorCache[atlas] = atlasCache end
-    local cacheKey = sheetKey .. "\0" .. name
-    if atlasCache[cacheKey] ~= nil then return atlasCache[cacheKey] or nil end
-    local sheet = atlas[sheetKey]
-    local data = sheet and sheet[name]
-    if type(data) ~= "table" or type(data[1]) ~= "number"
-        or type(data[2]) ~= "table" or type(data[3]) ~= "table" then
-        atlasCache[cacheKey] = false
-        return nil
-    end
-    local descriptor = {
-        Name = name,
-        Sheet = sheetKey,
-        Image = "rbxassetid://" .. tostring(data[1]),
-        Size = Vector2.new(data[2][1], data[2][2]),
-        Offset = Vector2.new(data[3][1], data[3][2]),
-    }
-    atlasCache[cacheKey] = descriptor
-    return descriptor
-end
-
-local function CreateAtlasIcon(atlas, parent, name, config)
-    config = config or {}
-    local descriptor = ResolveIcon(atlas, name, config.Sheet)
-    if not descriptor then return nil end
-    local pixels = tonumber(config.Pixels) or 16
-    local parentZIndex = 1
-    if typeof(parent) == "Instance" and parent:IsA("GuiObject") then
-        parentZIndex = parent.ZIndex
-    end
-    local icon = NewInstance(config.Button and "ImageButton" or "ImageLabel", {
-        Name = config.Name or ("Icon_" .. descriptor.Name),
-        AnchorPoint = config.AnchorPoint or Vector2.new(0, 0.5),
-        Position = config.Position or UDim2.new(0, 0, 0.5, 0),
-        Size = config.Size or UDim2.fromOffset(pixels, pixels),
-        BackgroundTransparency = 1,
-        Image = descriptor.Image,
-        ImageRectSize = descriptor.Size,
-        ImageRectOffset = descriptor.Offset,
-        ImageColor3 = config.Color or Theme.Text,
-        ImageTransparency = config.Transparency or 0,
-        ScaleType = Enum.ScaleType.Fit,
-        Rotation = config.Rotation or 0,
-        ZIndex = config.ZIndex or (parentZIndex + 1),
-        Parent = parent,
-    })
-    if config.Button then icon.AutoButtonColor = false end
-    icon:SetAttribute("LucideIcon", descriptor.Name)
-    icon:SetAttribute("LucideSheet", descriptor.Sheet)
-    return icon
 end
 
 local function Clamp01(n)
@@ -224,85 +72,53 @@ local function ClampOpenPosition(x, y, width, height)
     return math.clamp(x, 4, maxX), math.clamp(y, 4, maxY)
 end
 
-local ActivePointerDrags = {}
-
-local function RegisterPointerDrag(token, hitTargets, cancel)
-    ActivePointerDrags[token] = {
-        HitTargets = hitTargets,
-        Cancel = cancel,
-    }
-end
-
-local function UnregisterPointerDrag(token)
-    ActivePointerDrags[token] = nil
-end
-
-local function CancelPointerDragsInside(root)
-    local pending = {}
-    for _, drag in pairs(ActivePointerDrags) do
-        for _, hitTarget in ipairs(drag.HitTargets) do
-            if hitTarget == root or hitTarget.Parent and hitTarget:IsDescendantOf(root) then
-                table.insert(pending, drag.Cancel)
-                break
-            end
-        end
-    end
-    for _, cancel in ipairs(pending) do
-        pcall(cancel)
-    end
-end
-
 local function MakeDraggable(handle, target, onDragStart)
     local activeInput = nil
     local startInputPos = nil
     local startTargetPos = nil
-    local persistentConnections = {}
-    local transientChanged = nil
-    local transientEnded = nil
-    local disconnected = false
-    local dragToken = {}
-
-    local function FinishDrag()
-        if transientChanged then transientChanged:Disconnect(); transientChanged = nil end
-        if transientEnded then transientEnded:Disconnect(); transientEnded = nil end
-        activeInput = nil
-        UnregisterPointerDrag(dragToken)
-    end
 
     local function BeginDrag(input)
-        if disconnected or activeInput ~= nil then
+        if activeInput ~= nil then
             return
         end
         activeInput = input
         startInputPos = input.Position
         startTargetPos = target.Position
-        RegisterPointerDrag(dragToken, { handle, target }, FinishDrag)
         if onDragStart then
             onDragStart()
         end
-        if activeInput ~= input then return end
 
-        transientChanged = input.Changed:Connect(function()
+        local connChanged
+        local connEnded
+
+        connChanged = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
-                if activeInput == input then FinishDrag() end
+                if connChanged then connChanged:Disconnect() end
+                if connEnded then connEnded:Disconnect() end
+                if activeInput == input then
+                    activeInput = nil
+                end
             end
         end)
 
-        transientEnded = UserInputService.InputEnded:Connect(function(endedInput)
+        connEnded = UserInputService.InputEnded:Connect(function(endedInput)
             if endedInput == input then
-                FinishDrag()
+                if connChanged then connChanged:Disconnect() end
+                if connEnded then connEnded:Disconnect() end
+                if activeInput == input then
+                    activeInput = nil
+                end
             end
         end)
     end
 
-    table.insert(persistentConnections, handle.InputBegan:Connect(function(input)
-        if not handle.Interactable then return end
+    handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             BeginDrag(input)
         end
-    end))
+    end)
 
-    table.insert(persistentConnections, UserInputService.InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
         if activeInput == nil then
             return
         end
@@ -321,65 +137,49 @@ local function MakeDraggable(handle, target, onDragStart)
             startTargetPos.Y.Scale,
             startTargetPos.Y.Offset + delta.Y
         )
-    end))
-
-    local cleanup = {}
-    function cleanup:Disconnect()
-        if disconnected then return end
-        disconnected = true
-        FinishDrag()
-        for _, connection in ipairs(persistentConnections) do connection:Disconnect() end
-        table.clear(persistentConnections)
-    end
-    return cleanup
+    end)
 end
 
 local function MakeValueDragger(hitTargets, onInputDown, onInputMove)
     local activeInput = nil
-    local persistentConnections = {}
-    local transientChanged = nil
-    local transientEnded = nil
-    local disconnected = false
-    local dragToken = {}
-
-    local function FinishDrag()
-        if transientChanged then transientChanged:Disconnect(); transientChanged = nil end
-        if transientEnded then transientEnded:Disconnect(); transientEnded = nil end
-        activeInput = nil
-        UnregisterPointerDrag(dragToken)
-    end
 
     local function Bind(obj)
-        table.insert(persistentConnections, obj.InputBegan:Connect(function(input)
-            if not obj.Interactable then return end
-            if disconnected or activeInput ~= nil then
+        obj.InputBegan:Connect(function(input)
+            if activeInput ~= nil then
                 return
             end
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 activeInput = input
-                RegisterPointerDrag(dragToken, hitTargets, FinishDrag)
                 onInputDown(input)
-                if activeInput ~= input then return end
 
-                transientChanged = input.Changed:Connect(function()
+                local connChanged
+                local connEnded
+                local function FinishDrag()
+                    if connChanged then connChanged:Disconnect() end
+                    if connEnded then connEnded:Disconnect() end
+                    if activeInput == input then
+                        activeInput = nil
+                    end
+                end
+                connChanged = input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
-                        if activeInput == input then FinishDrag() end
+                        FinishDrag()
                     end
                 end)
-                transientEnded = UserInputService.InputEnded:Connect(function(endedInput)
+                connEnded = UserInputService.InputEnded:Connect(function(endedInput)
                     if endedInput == input then
                         FinishDrag()
                     end
                 end)
             end
-        end))
+        end)
     end
 
     for _, obj in ipairs(hitTargets) do
         Bind(obj)
     end
 
-    table.insert(persistentConnections, UserInputService.InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
         if activeInput == nil then
             return
         end
@@ -389,26 +189,10 @@ local function MakeValueDragger(hitTargets, onInputDown, onInputMove)
             return
         end
         onInputMove(input)
-    end))
-
-    local cleanup = {}
-    function cleanup:Disconnect()
-        if disconnected then return end
-        disconnected = true
-        FinishDrag()
-        for _, connection in ipairs(persistentConnections) do connection:Disconnect() end
-        table.clear(persistentConnections)
-    end
-    for _, obj in ipairs(hitTargets) do
-        table.insert(persistentConnections, obj.Destroying:Connect(function()
-            cleanup:Disconnect()
-        end))
-    end
-    return cleanup
+    end)
 end
 
 local ActiveKeybindCancel = nil
-local ActiveKeybindTarget = nil
 
 local OverlayRegistry = {}
 
@@ -443,141 +227,6 @@ local function CloseAllOverlays()
     CloseAllOverlaysExcept(nil)
 end
 
--- GuiObject.Interactable is not inherited by every descendant. Keep a
--- reference-counted lock per subtree so no button, field, slider hit-area or
--- drag handle stays live during a fade, even when several locks overlap.
-local InteractionLocks = setmetatable({}, { __mode = "k" })
-local InteractionStates = setmetatable({}, { __mode = "k" })
-
-local function IsInteractiveControl(gui)
-    return gui:IsA("GuiObject")
-end
-
-local function SetTreeInteractable(root, enabled)
-    if not root then return end
-
-    local lock = InteractionLocks[root]
-    if not enabled then
-        CancelPointerDragsInside(root)
-        if ActiveKeybindCancel and ActiveKeybindTarget
-            and (ActiveKeybindTarget == root or ActiveKeybindTarget:IsDescendantOf(root)) then
-            ActiveKeybindCancel()
-        end
-        if lock then
-            if not IsInteractiveControl(root) then root.Interactable = false end
-            return
-        end
-
-        lock = {
-            Objects = setmetatable({}, { __mode = "k" }),
-            Connection = nil,
-        }
-        InteractionLocks[root] = lock
-
-        local function LockControl(gui)
-            if not IsInteractiveControl(gui) or lock.Objects[gui] then return end
-            local state = InteractionStates[gui]
-            if not state then
-                state = { Count = 0, Original = gui.Interactable }
-                InteractionStates[gui] = state
-            end
-            state.Count = state.Count + 1
-            lock.Objects[gui] = true
-            if gui:IsA("TextBox") and gui:IsFocused() then
-                gui:ReleaseFocus(false)
-            end
-            gui.Interactable = false
-        end
-
-        LockControl(root)
-        for _, descendant in ipairs(root:GetDescendants()) do
-            LockControl(descendant)
-        end
-        lock.Connection = root.DescendantAdded:Connect(LockControl)
-
-        if not IsInteractiveControl(root) then root.Interactable = false end
-        return
-    end
-
-    if lock then
-        if lock.Connection then lock.Connection:Disconnect() end
-        for gui in pairs(lock.Objects) do
-            local state = InteractionStates[gui]
-            if state then
-                state.Count = state.Count - 1
-                if state.Count <= 0 then
-                    if gui.Parent then gui.Interactable = state.Original end
-                    InteractionStates[gui] = nil
-                elseif gui.Parent then
-                    gui.Interactable = false
-                end
-            end
-        end
-        InteractionLocks[root] = nil
-    end
-
-    if IsInteractiveControl(root) then
-        local state = InteractionStates[root]
-        if state then
-            -- The subtree was explicitly reopened while an ancestor is still
-            -- locked. Remember the desired state without defeating that lock.
-            state.Original = true
-            if root.Parent then root.Interactable = false end
-        elseif root.Parent then
-            root.Interactable = true
-        end
-    elseif root.Parent then
-        root.Interactable = true
-    end
-end
-
-local PopupAnimationState = setmetatable({}, { __mode = "k" })
-
-local function AnimatePopup(holder, open)
-    if not holder or not holder.Parent then return end
-    if not holder:IsA("CanvasGroup") then
-        SetTreeInteractable(holder, open)
-        holder.Visible = open
-        return
-    end
-
-    local state = PopupAnimationState[holder]
-    if not state then
-        state = { Token = 0, Tween = nil, Open = false }
-        PopupAnimationState[holder] = state
-    end
-    state.Token = state.Token + 1
-    state.Open = open
-    local token = state.Token
-    if state.Tween then state.Tween:Cancel() end
-
-    if open then
-        if not holder.Visible then holder.GroupTransparency = 1 end
-        holder.Visible = true
-        SetTreeInteractable(holder, true)
-    elseif not holder.Visible then
-        holder.GroupTransparency = 1
-        SetTreeInteractable(holder, false)
-        return
-    else
-        SetTreeInteractable(holder, false)
-    end
-
-    state.Tween = TweenService:Create(
-        holder,
-        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { GroupTransparency = open and 0 or 1 }
-    )
-    state.Tween:Play()
-    if not open then
-        state.Tween.Completed:Connect(function()
-            if holder.Parent and state.Token == token and not state.Open then
-                holder.Visible = false
-            end
-        end)
-    end
-end
-
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
         return
@@ -598,7 +247,6 @@ end)
 local function CreateElementFactory(context)
     local ScreenGui = context.ScreenGui
     local Accent = context.Accent
-    local CreateIcon = context.CreateIcon
 
     local Factory = {}
 
@@ -609,7 +257,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 20),
             Font = Enum.Font.GothamMedium,
             TextSize = 14,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Color3.fromRGB(170, 170, 170),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = text,
             Parent = parent,
@@ -643,7 +291,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 0),
                 Font = Enum.Font.GothamBold,
                 TextSize = 14,
-                TextColor3 = Theme.Text,
+                TextColor3 = Color3.fromRGB(210, 210, 210),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextWrapped = true,
                 Text = title,
@@ -658,7 +306,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Color3.fromRGB(160, 160, 160),
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Top,
             TextWrapped = true,
@@ -687,17 +335,21 @@ local function CreateElementFactory(context)
             AutomaticSize = Enum.AutomaticSize.X,
             Font = Enum.Font.GothamBold,
             TextSize = 12,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Accent.Value,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = string.upper(text or ""),
             Parent = row,
         })
 
+        Accent.Changed:Connect(function(color)
+            titleLabel.TextColor3 = color
+        end)
+
         local line = NewInstance("Frame", {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.new(1, -68, 0, 1),
-            BackgroundColor3 = Theme.Outline,
+            BackgroundColor3 = Color3.fromRGB(50, 50, 50),
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -727,16 +379,10 @@ local function CreateElementFactory(context)
 
         local row = NewInstance("Frame", {
             Name = "Toggle_" .. name,
-            BackgroundColor3 = Theme.Element,
-            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
             LayoutOrder = 1,
-            Size = UDim2.new(1, 0, 0, 34),
+            Size = UDim2.new(1, 0, 0, 26),
             Parent = container,
-        })
-
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, Theme.ElementRounding),
-            Parent = row,
         })
 
         local subHolder = nil
@@ -761,11 +407,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -64, 1, 0),
+            Size = UDim2.new(1, -48, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -774,23 +419,18 @@ local function CreateElementFactory(context)
         local box = NewInstance("TextButton", {
             Name = "Box",
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
-            Size = UDim2.fromOffset(28, 16),
-            BackgroundColor3 = Theme.ElementHover,
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.fromOffset(20, 20),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
             Parent = row,
         })
 
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = box,
-        })
-
         local boxStroke = NewInstance("UIStroke", {
-            Color = Theme.Outline,
-            Transparency = 0,
+            Color = Accent.Value,
+            Transparency = default and 0.3 or 1,
             Thickness = 1,
             Parent = box,
         })
@@ -803,39 +443,23 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = fill,
-        })
-
-        local knob = NewInstance("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = default and UDim2.new(1, -8, 0.5, 0) or UDim2.fromOffset(8, 8),
-            Size = UDim2.fromOffset(8, 8),
-            BackgroundColor3 = Theme.TextBright,
-            BorderSizePixel = 0,
-            ZIndex = fill.ZIndex + 1,
-            Parent = box,
-        })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
-
         local state = default
 
         local function ApplyVisual(animated)
             local goal = { BackgroundTransparency = state and 0 or 1 }
-            local knobGoal = { Position = state and UDim2.new(1, -8, 0.5, 0) or UDim2.fromOffset(8, 8) }
+            local strokeGoal = { Transparency = state and 0.3 or 1 }
             if animated then
                 TweenService:Create(fill, TweenInfo.new(0.15), goal):Play()
-                TweenService:Create(knob, TweenInfo.new(0.15), knobGoal):Play()
+                TweenService:Create(boxStroke, TweenInfo.new(0.15), strokeGoal):Play()
             else
                 fill.BackgroundTransparency = goal.BackgroundTransparency
-                knob.Position = knobGoal.Position
+                boxStroke.Transparency = strokeGoal.Transparency
             end
         end
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
+            boxStroke.Color = color
         end)
 
         box.MouseButton1Click:Connect(function()
@@ -892,35 +516,29 @@ local function CreateElementFactory(context)
 
         local row = NewInstance("Frame", {
             Name = "Slider_" .. name,
-            BackgroundColor3 = Theme.Element,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 42),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 38),
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.ElementRounding), Parent = row })
-
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 2),
-            Size = UDim2.new(1, -24, 0, 18),
+            Size = UDim2.new(1, 0, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(default),
             Parent = row,
         })
 
         local track = NewInstance("Frame", {
-            Position = UDim2.fromOffset(12, 27),
-            Size = UDim2.new(1, -24, 0, 6),
-            BackgroundColor3 = Theme.Slider,
+            Position = UDim2.fromOffset(0, 23),
+            Size = UDim2.new(1, 0, 0, 8),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Parent = row,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
 
         local fillRatio = (max > min) and Clamp01((default - min) / (max - min)) or 0
 
@@ -931,19 +549,15 @@ local function CreateElementFactory(context)
             Parent = track,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
-
         local knob = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(fillRatio, 0, 0.5, 0),
-            Size = UDim2.fromOffset(10, 10),
-            BackgroundColor3 = Theme.TextBright,
+            Size = UDim2.fromOffset(13, 18),
+            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
@@ -1004,51 +618,26 @@ local function CreateElementFactory(context)
         local btn = NewInstance("TextButton", {
             Name = "Button_" .. name,
             Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.GothamMedium,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             Text = name,
-            TextXAlignment = config.Icon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center,
             Parent = parent,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
-            Parent = btn,
-        })
-
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, Theme.ElementRounding),
-            Parent = btn,
-        })
-
-        local buttonIcon = nil
-        if config.Icon and CreateIcon then
-            buttonIcon = CreateIcon(btn, config.Icon, {
-                Pixels = 14,
-                Position = UDim2.new(0, -23, 0.5, 0),
-                Color = Theme.Text,
-                ZIndex = btn.ZIndex + 1,
-            })
-            if not buttonIcon then
-                btn.TextXAlignment = Enum.TextXAlignment.Center
-            end
-        end
-
-        local buttonPadding = NewInstance("UIPadding", {
-            PaddingLeft = UDim.new(0, buttonIcon and 34 or 12),
-            PaddingRight = UDim.new(0, 12),
             Parent = btn,
         })
 
         btn.MouseButton1Click:Connect(function()
             TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Accent.Value }):Play()
             task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(20, 20, 20) }):Play()
             end)
             if callback then
                 callback()
@@ -1059,23 +648,6 @@ local function CreateElementFactory(context)
         function api.SetText(text)
             btn.Text = text
         end
-        function api.SetIcon(iconName)
-            if buttonIcon then buttonIcon:Destroy(); buttonIcon = nil end
-            if iconName and CreateIcon then
-                buttonIcon = CreateIcon(btn, iconName, {
-                    Pixels = 14,
-                    Position = UDim2.new(0, -23, 0.5, 0),
-                    Color = Theme.Text,
-                    ZIndex = btn.ZIndex + 1,
-                })
-            end
-            btn.TextXAlignment = buttonIcon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
-            buttonPadding.PaddingLeft = UDim.new(0, buttonIcon and 34 or 12)
-            api.Icon = buttonIcon
-            return buttonIcon
-        end
-        api.Icon = buttonIcon
-        api.Instance = btn
         return api
     end
 
@@ -1089,35 +661,29 @@ local function CreateElementFactory(context)
 
         local row = NewInstance("Frame", {
             Name = "ProgressBar_" .. name,
-            BackgroundColor3 = Theme.Element,
-            BorderSizePixel = 0,
+            BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 36),
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.ElementRounding), Parent = row })
-
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
         })
 
         local track = NewInstance("Frame", {
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 8),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 8),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Parent = row,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
 
         local ratio = (max > min) and Clamp01((default - min) / (max - min)) or 0
 
@@ -1127,8 +693,6 @@ local function CreateElementFactory(context)
             BorderSizePixel = 0,
             Parent = track,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
@@ -1155,17 +719,14 @@ local function CreateElementFactory(context)
 
         local holder = NewInstance("Frame", {
             Name = "Image",
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
-            ClipsDescendants = true,
             Size = UDim2.new(1, 0, 0, height),
             Parent = parent,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.ElementRounding), Parent = holder })
-
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = holder,
         })
@@ -1202,11 +763,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1214,26 +774,24 @@ local function CreateElementFactory(context)
 
         local box = NewInstance("TextButton", {
             Name = "Box",
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 28),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 28),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
 
         local arrow = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
@@ -1247,42 +805,28 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
-        local arrowIcon = nil
-        if CreateIcon then
-            arrowIcon = CreateIcon(box, "chevron-down", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.new(1, -18, 0.5, 0),
-                Pixels = 15,
-                Color = Accent.Value,
-                ZIndex = box.ZIndex + 1,
-            })
-            if arrowIcon then arrow.Text = "" end
-        end
-
         local isOpen = false
 
         Accent.Changed:Connect(function(color)
             arrow.TextColor3 = color
-            if arrowIcon then arrowIcon.ImageColor3 = color end
             if isOpen then
                 boxStroke.Color = color
             end
         end)
 
-        local optionsHolder = NewInstance("CanvasGroup", {
+        local optionsHolder = NewInstance("Frame", {
             Name = "DropdownOptionsHolder_" .. name,
-            BackgroundColor3 = Theme.Popup,
+            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, 28),
             Visible = false,
-            GroupTransparency = 1,
             ClipsDescendants = true,
             ZIndex = 200,
             Parent = ScreenGui,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -1296,7 +840,7 @@ local function CreateElementFactory(context)
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Theme.TextDim,
+            ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120),
             ScrollBarImageTransparency = 0.4,
             ZIndex = optionsHolder.ZIndex + 1,
             Parent = optionsHolder,
@@ -1313,24 +857,20 @@ local function CreateElementFactory(context)
         local function HighlightSelected()
             for opt, btn in pairs(optionButtons) do
                 if opt == currentValue then
-                    btn.BackgroundColor3 = Theme.ElementHover
+                    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
                     btn.TextColor3 = Accent.Value
                 else
-                    btn.BackgroundColor3 = Theme.Popup
-                    btn.TextColor3 = Theme.Text
+                    btn.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+                    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
                 end
             end
         end
 
         local function Close()
             isOpen = false
-            AnimatePopup(optionsHolder, false)
-            boxStroke.Color = Theme.Outline
-            if arrowIcon then
-                TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 0 }):Play()
-            else
-                arrow.Text = "\u{25BC}"
-            end
+            optionsHolder.Visible = false
+            boxStroke.Color = Color3.fromRGB(60, 60, 60)
+            arrow.Text = "\u{25BC}"
         end
 
         local function RebuildOptions()
@@ -1343,13 +883,13 @@ local function CreateElementFactory(context)
             for index, opt in ipairs(options) do
                 local optBtn = NewInstance("TextButton", {
                     Name = "Option_" .. tostring(opt),
-                    BackgroundColor3 = Theme.Popup,
+                    BackgroundColor3 = Color3.fromRGB(16, 16, 16),
                     BorderSizePixel = 0,
                     AutoButtonColor = false,
                     Size = UDim2.new(1, 0, 0, 28),
                     Font = Enum.Font.Gotham,
                     TextSize = 13,
-                    TextColor3 = Theme.Text,
+                    TextColor3 = Color3.fromRGB(200, 200, 200),
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Text = "   " .. tostring(opt),
                     LayoutOrder = index,
@@ -1361,12 +901,12 @@ local function CreateElementFactory(context)
 
                 optBtn.MouseEnter:Connect(function()
                     if opt ~= currentValue then
-                        TweenService:Create(optBtn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.ElementActive }):Play()
+                        optBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
                     end
                 end)
                 optBtn.MouseLeave:Connect(function()
                     if opt ~= currentValue then
-                        TweenService:Create(optBtn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.Popup }):Play()
+                        optBtn.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
                     end
                 end)
                 optBtn.MouseButton1Click:Connect(function()
@@ -1393,14 +933,10 @@ local function CreateElementFactory(context)
             optionsHolder.Size = UDim2.fromOffset(boxSize.X, panelHeight)
             local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, boxSize.X, panelHeight)
             optionsHolder.Position = UDim2.fromOffset(x, y)
+            optionsHolder.Visible = true
             isOpen = true
-            AnimatePopup(optionsHolder, true)
             boxStroke.Color = Accent.Value
-            if arrowIcon then
-                TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 180 }):Play()
-            else
-                arrow.Text = "\u{25B2}"
-            end
+            arrow.Text = "\u{25B2}"
             HighlightSelected()
         end
 
@@ -1455,11 +991,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1467,26 +1002,24 @@ local function CreateElementFactory(context)
 
         local box = NewInstance("TextButton", {
             Name = "Box",
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 24),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 24),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "",
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
 
         NewInstance("UIPadding", {
             PaddingLeft = UDim.new(0, 6),
@@ -1505,37 +1038,23 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
-        local arrowIcon = nil
-        if CreateIcon then
-            arrowIcon = CreateIcon(box, "chevron-down", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.new(1, -16, 0.5, 0),
-                Pixels = 15,
-                Color = Accent.Value,
-                ZIndex = box.ZIndex + 1,
-            })
-            if arrowIcon then arrow.Text = "" end
-        end
-
         Accent.Changed:Connect(function(color)
             arrow.TextColor3 = color
-            if arrowIcon then arrowIcon.ImageColor3 = color end
         end)
 
-        local optionsHolder = NewInstance("CanvasGroup", {
+        local optionsHolder = NewInstance("Frame", {
             Name = "MultiDropdownOptionsHolder_" .. name,
-            BackgroundColor3 = Theme.Popup,
+            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, math.min(#options, 8) * 24),
             Visible = false,
-            GroupTransparency = 1,
             ClipsDescendants = true,
             ZIndex = 200,
             Parent = ScreenGui,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -1549,7 +1068,7 @@ local function CreateElementFactory(context)
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Theme.TextDim,
+            ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120),
             ScrollBarImageTransparency = 0.4,
             ZIndex = optionsHolder.ZIndex + 1,
             Parent = optionsHolder,
@@ -1584,8 +1103,7 @@ local function CreateElementFactory(context)
 
         local function Close()
             isOpen = false
-            AnimatePopup(optionsHolder, false)
-            if arrowIcon then TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 0 }):Play() end
+            optionsHolder.Visible = false
         end
 
         local function RebuildOptions()
@@ -1598,7 +1116,7 @@ local function CreateElementFactory(context)
             for _, opt in ipairs(options) do
                 local optRow = NewInstance("Frame", {
                     Name = "Option_" .. tostring(opt),
-                    BackgroundColor3 = Theme.Popup,
+                    BackgroundColor3 = Color3.fromRGB(16, 16, 16),
                     BorderSizePixel = 0,
                     Size = UDim2.new(1, 0, 0, 24),
                     ZIndex = optionsScroll.ZIndex + 1,
@@ -1610,7 +1128,7 @@ local function CreateElementFactory(context)
                     Size = UDim2.fromScale(1, 1),
                     Font = Enum.Font.Gotham,
                     TextSize = 13,
-                    TextColor3 = Theme.Text,
+                    TextColor3 = Color3.fromRGB(200, 200, 200),
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Text = "  " .. tostring(opt),
                     ZIndex = optRow.ZIndex + 1,
@@ -1622,24 +1140,17 @@ local function CreateElementFactory(context)
                     Position = UDim2.new(1, -6, 0.5, 0),
                     Size = UDim2.fromOffset(12, 12),
                     BackgroundColor3 = Accent.Value,
-                    BackgroundTransparency = selected[opt] == true and 0 or 1,
                     BorderSizePixel = 0,
-                    Visible = true,
+                    Visible = selected[opt] == true,
                     ZIndex = optRow.ZIndex + 1,
                     Parent = optRow,
                 })
-
-                NewInstance("UICorner", { CornerRadius = UDim.new(0, 4), Parent = check })
 
                 checkMarks[opt] = check
 
                 optBtn.MouseButton1Click:Connect(function()
                     selected[opt] = not selected[opt]
-                    TweenService:Create(
-                        check,
-                        TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                        { BackgroundTransparency = selected[opt] == true and 0 or 1 }
-                    ):Play()
+                    check.Visible = selected[opt] == true
                     RefreshBoxText()
                     if callback then
                         callback(selected)
@@ -1665,9 +1176,8 @@ local function CreateElementFactory(context)
             optionsHolder.Size = UDim2.fromOffset(boxSize.X, panelHeight)
             local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, boxSize.X, panelHeight)
             optionsHolder.Position = UDim2.fromOffset(x, y)
+            optionsHolder.Visible = true
             isOpen = true
-            AnimatePopup(optionsHolder, true)
-            if arrowIcon then TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 180 }):Play() end
         end
 
         box.MouseButton1Click:Connect(function()
@@ -1700,7 +1210,7 @@ local function CreateElementFactory(context)
                 selected[opt] = true
             end
             for opt, check in pairs(checkMarks) do
-                check.BackgroundTransparency = selected[opt] == true and 0 or 1
+                check.Visible = selected[opt] == true
             end
             RefreshBoxText()
         end
@@ -1710,7 +1220,7 @@ local function CreateElementFactory(context)
     function Factory.ColorPicker(parent, config)
         config = config or {}
         local name = config.Name or "Color"
-        local default = config.Default or Theme.TextBright
+        local default = config.Default or Color3.fromRGB(255, 255, 255)
         local callback = config.Callback
 
         local row = NewInstance("Frame", {
@@ -1722,11 +1232,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -56, 1, 0),
+            Size = UDim2.new(1, -48, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1735,8 +1244,8 @@ local function CreateElementFactory(context)
         local swatch = NewInstance("TextButton", {
             Name = "Swatch",
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
-            Size = UDim2.fromOffset(16, 16),
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.fromOffset(26, 20),
             BackgroundColor3 = default,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -1745,42 +1254,32 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(80, 80, 80),
             Thickness = 1,
-            Parent = swatch,
-        })
-
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, 5),
             Parent = swatch,
         })
 
         local h, s, v = Color3.toHSV(default)
         local currentColor = default
 
-        local panel = NewInstance("CanvasGroup", {
+        local panel = NewInstance("Frame", {
             Name = "ColorPickerPanel_" .. name,
-            BackgroundColor3 = Theme.Popup,
-            BackgroundTransparency = Theme.PopupTransparency,
+            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(180, 204),
             Visible = false,
-            GroupTransparency = 1,
-            Interactable = false,
             ZIndex = 200,
             Parent = ScreenGui,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.PopupRounding), Parent = panel })
-
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = panel,
         })
 
         local panelHandle = NewInstance("Frame", {
-            BackgroundTransparency = 1,
+            BackgroundColor3 = Color3.fromRGB(24, 24, 24),
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 22),
             ZIndex = panel.ZIndex + 1,
@@ -1793,7 +1292,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.GothamMedium,
             TextSize = 12,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Color3.fromRGB(180, 180, 180),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             ZIndex = panelHandle.ZIndex + 1,
@@ -1808,7 +1307,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Color3.fromRGB(180, 180, 180),
             Text = "x",
             ZIndex = panelHandle.ZIndex + 1,
             Parent = panelHandle,
@@ -1821,12 +1320,9 @@ local function CreateElementFactory(context)
             BackgroundColor3 = Color3.fromHSV(h, 1, 1),
             BorderSizePixel = 0,
             AutoButtonColor = false,
-            ClipsDescendants = false,
             ZIndex = panel.ZIndex + 1,
             Parent = panel,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 7), Parent = svMap })
 
         local svWhiteOverlay = NewInstance("Frame", {
             Size = UDim2.fromScale(1, 1),
@@ -1835,8 +1331,6 @@ local function CreateElementFactory(context)
             ZIndex = svMap.ZIndex + 1,
             Parent = svMap,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 7), Parent = svWhiteOverlay })
 
         NewInstance("UIGradient", {
             Transparency = NumberSequence.new(0, 1),
@@ -1851,8 +1345,6 @@ local function CreateElementFactory(context)
             Parent = svMap,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 7), Parent = svBlackOverlay })
-
         NewInstance("UIGradient", {
             Rotation = 90,
             Transparency = NumberSequence.new(1, 0),
@@ -1861,31 +1353,27 @@ local function CreateElementFactory(context)
 
         local svCursor = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
-            Size = UDim2.fromOffset(10, 10),
-            BackgroundTransparency = 1,
+            Size = UDim2.fromOffset(8, 8),
+            BackgroundColor3 = Color3.new(1, 1, 1),
             BorderSizePixel = 0,
             ZIndex = svBlackOverlay.ZIndex + 1,
             Position = UDim2.new(s, 0, 1 - v, 0),
             Parent = svMap,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = svCursor })
-
         NewInstance("UIStroke", {
-            Color = Color3.new(1, 1, 1),
-            Thickness = 2,
+            Color = Color3.new(0, 0, 0),
+            Thickness = 1.5,
             Parent = svCursor,
         })
 
         local hueTrack = NewInstance("Frame", {
             Position = UDim2.fromOffset(10, 154),
-            Size = UDim2.fromOffset(160, 8),
+            Size = UDim2.fromOffset(160, 14),
             BorderSizePixel = 0,
             ZIndex = panel.ZIndex + 1,
             Parent = panel,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = hueTrack })
 
         local hueSequence = {}
         for i = 0, 10 do
@@ -1900,43 +1388,34 @@ local function CreateElementFactory(context)
         local hueCursor = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(h, 0, 0.5, 0),
-            Size = UDim2.fromOffset(12, 12),
-            BackgroundTransparency = 1,
+            Size = UDim2.fromOffset(4, 18),
+            BackgroundColor3 = Color3.new(1, 1, 1),
             BorderSizePixel = 0,
             ZIndex = hueTrack.ZIndex + 1,
             Parent = hueTrack,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = hueCursor })
-
         NewInstance("UIStroke", {
-            Color = Color3.new(1, 1, 1),
-            Thickness = 2,
+            Color = Color3.new(0, 0, 0),
+            Thickness = 1,
             Parent = hueCursor,
         })
-
-        local hueCursorTween = nil
 
         local hexBox = NewInstance("TextBox", {
             Position = UDim2.fromOffset(10, 178),
             Size = UDim2.fromOffset(160, 16),
-            BackgroundColor3 = Theme.ElementActive,
+            BackgroundColor3 = Color3.fromRGB(26, 26, 26),
             BorderSizePixel = 0,
             Font = Enum.Font.Code,
             TextSize = 12,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             ClearTextOnFocus = false,
             Text = "#" .. default:ToHex(),
             ZIndex = panel.ZIndex + 1,
             Parent = panel,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 5), Parent = hexBox })
-        NewInstance("UIStroke", { Color = Theme.Outline, Thickness = 1, Parent = hexBox })
-
         local isOpen = false
-        local panelTransition = 0
-        local panelTween = nil
 
         local function ApplyColor(fromUser)
             currentColor = Color3.fromHSV(h, s, v)
@@ -1961,13 +1440,7 @@ local function CreateElementFactory(context)
             local pos = hueTrack.AbsolutePosition
             local size = hueTrack.AbsoluteSize
             h = Clamp01((x - pos.X) / size.X)
-            if hueCursorTween then hueCursorTween:Cancel() end
-            hueCursorTween = TweenService:Create(
-                hueCursor,
-                TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { Position = UDim2.new(h, 0, 0.5, 0) }
-            )
-            hueCursorTween:Play()
+            hueCursor.Position = UDim2.new(h, 0, 0.5, 0)
             ApplyColor(true)
         end
 
@@ -1989,7 +1462,6 @@ local function CreateElementFactory(context)
             if ok then
                 h, s, v = Color3.toHSV(color)
                 svCursor.Position = UDim2.new(s, 0, 1 - v, 0)
-                if hueCursorTween then hueCursorTween:Cancel() end
                 hueCursor.Position = UDim2.new(h, 0, 0.5, 0)
                 ApplyColor(true)
             else
@@ -1998,23 +1470,8 @@ local function CreateElementFactory(context)
         end)
 
         local function Close()
-            if not isOpen and not panel.Visible then return end
             isOpen = false
-            SetTreeInteractable(panel, false)
-            panelTransition = panelTransition + 1
-            local token = panelTransition
-            if panelTween then panelTween:Cancel() end
-            panelTween = TweenService:Create(
-                panel,
-                TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { GroupTransparency = 1 }
-            )
-            panelTween:Play()
-            panelTween.Completed:Connect(function()
-                if panel.Parent and token == panelTransition and not isOpen then
-                    panel.Visible = false
-                end
-            end)
+            panel.Visible = false
         end
 
         local function Open()
@@ -2022,22 +1479,12 @@ local function CreateElementFactory(context)
             local swatchPos = swatch.AbsolutePosition
             local swatchSize = swatch.AbsoluteSize
             local panelSize = panel.AbsoluteSize
-            local x = swatchPos.X + swatchSize.X + 5
-            local y = swatchPos.Y - 100
+            local x = swatchPos.X - panelSize.X + swatchSize.X
+            local y = swatchPos.Y + swatchSize.Y + 4
             x, y = ClampOpenPosition(x, y, panelSize.X, panelSize.Y)
             panel.Position = UDim2.fromOffset(x, y)
-            isOpen = true
-            panelTransition = panelTransition + 1
-            if panelTween then panelTween:Cancel() end
-            if not panel.Visible then panel.GroupTransparency = 1 end
             panel.Visible = true
-            SetTreeInteractable(panel, true)
-            panelTween = TweenService:Create(
-                panel,
-                TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { GroupTransparency = 0 }
-            )
-            panelTween:Play()
+            isOpen = true
         end
 
         swatch.MouseButton1Click:Connect(function()
@@ -2050,15 +1497,11 @@ local function CreateElementFactory(context)
 
         closeBtn.MouseButton1Click:Connect(Close)
 
-        local pickerDragCleanup = MakeDraggable(panelHandle, panel)
+        MakeDraggable(panelHandle, panel)
 
         RegisterOverlay(panel, swatch, function() return isOpen end, Close)
 
         row.Destroying:Connect(function()
-            panelTransition = panelTransition + 1
-            if panelTween then panelTween:Cancel() end
-            if hueCursorTween then hueCursorTween:Cancel() end
-            pickerDragCleanup:Disconnect()
             panel:Destroy()
         end)
 
@@ -2066,7 +1509,6 @@ local function CreateElementFactory(context)
         function api.Set(color3)
             h, s, v = Color3.toHSV(color3)
             svCursor.Position = UDim2.new(s, 0, 1 - v, 0)
-            if hueCursorTween then hueCursorTween:Cancel() end
             hueCursor.Position = UDim2.new(h, 0, 0.5, 0)
             ApplyColor(false)
         end
@@ -2092,26 +1534,25 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
         })
 
         local box = NewInstance("TextBox", {
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 18),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             PlaceholderText = placeholder,
-            PlaceholderColor3 = Theme.TextDim,
+            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
             ClearTextOnFocus = false,
             Text = default,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -2119,12 +1560,10 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
 
         NewInstance("UIPadding", {
             PaddingLeft = UDim.new(0, 6),
@@ -2163,11 +1602,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -120, 1, 0),
+            Size = UDim2.new(1, -90, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2175,54 +1613,46 @@ local function CreateElementFactory(context)
 
         local box = NewInstance("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
+            Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(84, 20),
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 12,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             Text = FormatKeycodeName(default),
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
-
         local currentKey = default
         local listening = false
 
-        local function StopListening()
-            listening = false
-            if box.Parent then box.Text = FormatKeycodeName(currentKey) end
-            if ActiveKeybindTarget == box then
-                ActiveKeybindTarget = nil
-                ActiveKeybindCancel = nil
-            end
-        end
-
         box.MouseButton1Click:Connect(function()
             if listening then
-                StopListening()
+                listening = false
+                ActiveKeybindCancel = nil
+                box.Text = FormatKeycodeName(currentKey)
                 return
             end
             if ActiveKeybindCancel then
                 ActiveKeybindCancel()
             end
             listening = true
-            ActiveKeybindTarget = box
-            ActiveKeybindCancel = StopListening
+            ActiveKeybindCancel = function()
+                listening = false
+                box.Text = FormatKeycodeName(currentKey)
+            end
             box.Text = "..."
         end)
 
-        local keyInputConnection
-        keyInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if not listening then
                 return
             end
@@ -2231,20 +1661,19 @@ local function CreateElementFactory(context)
             end
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 if input.KeyCode == Enum.KeyCode.Escape then
-                    StopListening()
+                    listening = false
+                    ActiveKeybindCancel = nil
+                    box.Text = FormatKeycodeName(currentKey)
                     return
                 end
                 currentKey = input.KeyCode
-                StopListening()
+                box.Text = FormatKeycodeName(currentKey)
+                listening = false
+                ActiveKeybindCancel = nil
                 if callback then
                     callback(currentKey)
                 end
             end
-        end)
-
-        row.Destroying:Connect(function()
-            StopListening()
-            if keyInputConnection then keyInputConnection:Disconnect() end
         end)
 
         local api = {}
@@ -2270,7 +1699,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = Theme.Outline,
+            BackgroundColor3 = Color3.fromRGB(55, 55, 55),
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -2301,11 +1730,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -56, 1, 0),
+            Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2313,9 +1741,9 @@ local function CreateElementFactory(context)
 
         local box = NewInstance("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
+            Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(18, 18),
-            BackgroundColor3 = default and Accent.Value or Theme.Element,
+            BackgroundColor3 = default and Accent.Value or Color3.fromRGB(20, 20, 20),
             BackgroundTransparency = default and 0 or 1,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -2329,7 +1757,7 @@ local function CreateElementFactory(context)
         })
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = default and Accent.Value or Theme.Outline,
+            Color = default and Accent.Value or Color3.fromRGB(70, 70, 70),
             Thickness = 1,
             Parent = box,
         })
@@ -2339,32 +1767,29 @@ local function CreateElementFactory(context)
             Size = UDim2.fromScale(1, 1),
             Font = Enum.Font.GothamBold,
             TextSize = 13,
-            TextColor3 = Theme.Element,
+            TextColor3 = Color3.fromRGB(20, 20, 20),
             Text = "\u{2713}",
-            Visible = true,
-            TextTransparency = default and 0 or 1,
+            Visible = default,
             Parent = box,
         })
 
         local state = default
 
         local function ApplyVisual(animated)
+            check.Visible = state
             local bgGoal = { BackgroundTransparency = state and 0 or 1 }
-            local checkGoal = { TextTransparency = state and 0 or 1 }
-            boxStroke.Color = state and Accent.Value or Theme.Outline
+            boxStroke.Color = state and Accent.Value or Color3.fromRGB(70, 70, 70)
             box.BackgroundColor3 = Accent.Value
             if animated then
-                TweenService:Create(box, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), bgGoal):Play()
-                TweenService:Create(check, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), checkGoal):Play()
+                TweenService:Create(box, TweenInfo.new(0.12), bgGoal):Play()
             else
                 box.BackgroundTransparency = bgGoal.BackgroundTransparency
-                check.TextTransparency = checkGoal.TextTransparency
             end
         end
 
         Accent.Changed:Connect(function(color)
             box.BackgroundColor3 = color
-            boxStroke.Color = state and color or Theme.Outline
+            boxStroke.Color = state and color or Color3.fromRGB(70, 70, 70)
         end)
 
         box.MouseButton1Click:Connect(function()
@@ -2401,11 +1826,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -76, 1, 0),
+            Size = UDim2.new(1, -52, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2413,9 +1837,9 @@ local function CreateElementFactory(context)
 
         local track = NewInstance("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
+            Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(40, 20),
-            BackgroundColor3 = default and Accent.Value or Theme.ElementHover,
+            BackgroundColor3 = default and Accent.Value or Color3.fromRGB(45, 45, 45),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
@@ -2431,7 +1855,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = default and UDim2.new(1, -11, 0.5, 0) or UDim2.new(0, 11, 0.5, 0),
             Size = UDim2.fromOffset(14, 14),
-            BackgroundColor3 = Theme.TextBright,
+            BackgroundColor3 = Color3.fromRGB(240, 240, 240),
             BorderSizePixel = 0,
             Parent = track,
         })
@@ -2445,7 +1869,7 @@ local function CreateElementFactory(context)
 
         local function ApplyVisual(animated)
             local knobGoal = { Position = state and UDim2.new(1, -11, 0.5, 0) or UDim2.new(0, 11, 0.5, 0) }
-            local trackGoal = { BackgroundColor3 = state and Accent.Value or Theme.ElementHover }
+            local trackGoal = { BackgroundColor3 = state and Accent.Value or Color3.fromRGB(45, 45, 45) }
             if animated then
                 TweenService:Create(knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad), knobGoal):Play()
                 TweenService:Create(track, TweenInfo.new(0.15), trackGoal):Play()
@@ -2501,7 +1925,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 16),
                 Font = Enum.Font.Gotham,
                 TextSize = 14,
-                TextColor3 = Theme.Text,
+                TextColor3 = Color3.fromRGB(200, 200, 200),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = name,
                 Parent = row,
@@ -2511,19 +1935,16 @@ local function CreateElementFactory(context)
         local bar = NewInstance("Frame", {
             Position = UDim2.fromOffset(0, hasLabel and 20 or 0),
             Size = UDim2.new(1, 0, 0, 24),
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
-            ClipsDescendants = true,
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = bar,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = bar })
 
         NewInstance("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
@@ -2537,16 +1958,14 @@ local function CreateElementFactory(context)
 
         local function Highlight()
             for opt, btn in pairs(segButtons) do
-                local active = opt == currentValue
-                btn.BackgroundColor3 = Accent.Value
-                TweenService:Create(
-                    btn,
-                    TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    {
-                        BackgroundTransparency = active and 0.15 or 1,
-                        TextColor3 = active and Theme.TextBright or Theme.Text,
-                    }
-                ):Play()
+                if opt == currentValue then
+                    btn.BackgroundColor3 = Accent.Value
+                    btn.BackgroundTransparency = 0.15
+                    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+                else
+                    btn.BackgroundTransparency = 1
+                    btn.TextColor3 = Color3.fromRGB(190, 190, 190)
+                end
             end
         end
 
@@ -2561,7 +1980,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1 / count, 0, 1, 0),
                 Font = Enum.Font.GothamMedium,
                 TextSize = 12,
-                TextColor3 = Theme.Text,
+                TextColor3 = Color3.fromRGB(190, 190, 190),
                 Text = tostring(opt),
                 LayoutOrder = index,
                 Parent = bar,
@@ -2617,7 +2036,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 16),
                 Font = Enum.Font.Gotham,
                 TextSize = 14,
-                TextColor3 = Theme.Text,
+                TextColor3 = Color3.fromRGB(200, 200, 200),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = name,
                 Parent = row,
@@ -2627,24 +2046,10 @@ local function CreateElementFactory(context)
         local currentValue = default
         local dots = {}
 
-        local function SelectOption(opt, animated)
+        local function SelectOption(opt)
             currentValue = opt
             for optName, dot in pairs(dots) do
-                local active = optName == opt
-                local goal = {
-                    BackgroundTransparency = active and 0 or 1,
-                    Size = active and UDim2.fromOffset(8, 8) or UDim2.fromOffset(5, 5),
-                }
-                if animated then
-                    TweenService:Create(
-                        dot,
-                        TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                        goal
-                    ):Play()
-                else
-                    dot.BackgroundTransparency = goal.BackgroundTransparency
-                    dot.Size = goal.Size
-                end
+                dot.Visible = (optName == opt)
             end
         end
 
@@ -2668,7 +2073,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, -24, 1, 0),
                 Font = Enum.Font.Gotham,
                 TextSize = 13,
-                TextColor3 = Theme.Text,
+                TextColor3 = Color3.fromRGB(190, 190, 190),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = tostring(opt),
                 Parent = optRow,
@@ -2678,7 +2083,7 @@ local function CreateElementFactory(context)
                 AnchorPoint = Vector2.new(1, 0.5),
                 Position = UDim2.new(1, 0, 0.5, 0),
                 Size = UDim2.fromOffset(16, 16),
-                BackgroundColor3 = Theme.Element,
+                BackgroundColor3 = Color3.fromRGB(20, 20, 20),
                 BorderSizePixel = 0,
                 Parent = optRow,
             })
@@ -2689,7 +2094,7 @@ local function CreateElementFactory(context)
             })
 
             NewInstance("UIStroke", {
-                Color = Theme.Outline,
+                Color = Color3.fromRGB(70, 70, 70),
                 Thickness = 1,
                 Parent = ring,
             })
@@ -2699,9 +2104,8 @@ local function CreateElementFactory(context)
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromOffset(8, 8),
                 BackgroundColor3 = Accent.Value,
-                BackgroundTransparency = opt == default and 0 or 1,
                 BorderSizePixel = 0,
-                Visible = true,
+                Visible = (opt == default),
                 Parent = ring,
             })
 
@@ -2713,7 +2117,7 @@ local function CreateElementFactory(context)
             dots[opt] = dot
 
             optBtn.MouseButton1Click:Connect(function()
-                SelectOption(opt, true)
+                SelectOption(opt)
                 if callback then
                     callback(opt)
                 end
@@ -2728,7 +2132,7 @@ local function CreateElementFactory(context)
 
         local api = {}
         function api.Set(value)
-            SelectOption(value, false)
+            SelectOption(value)
         end
         function api.Get()
             return currentValue
@@ -2755,11 +2159,10 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -134, 1, 0),
+            Size = UDim2.new(1, -110, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2767,18 +2170,15 @@ local function CreateElementFactory(context)
 
         local controls = NewInstance("Frame", {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -12, 0.5, 0),
+            Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(100, 22),
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
-            ClipsDescendants = true,
             Parent = row,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = controls })
-
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = controls,
         })
@@ -2789,7 +2189,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             Text = "-",
             Parent = controls,
         })
@@ -2800,7 +2200,7 @@ local function CreateElementFactory(context)
             BackgroundTransparency = 1,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             Text = tostring(default),
             Parent = controls,
         })
@@ -2813,7 +2213,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             Text = "+",
             Parent = controls,
         })
@@ -2831,7 +2231,7 @@ local function CreateElementFactory(context)
         local function FlashButton(btn)
             TweenService:Create(btn, TweenInfo.new(0.08), { TextColor3 = Accent.Value }):Play()
             task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Theme.Text }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
             end)
         end
 
@@ -2875,25 +2275,22 @@ local function CreateElementFactory(context)
 
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 18),
+            Size = UDim2.new(1, 0, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(defaultLow) .. " - " .. tostring(defaultHigh),
             Parent = row,
         })
 
         local track = NewInstance("Frame", {
-            Position = UDim2.fromOffset(12, 23),
-            Size = UDim2.new(1, -24, 0, 8),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 23),
+            Size = UDim2.new(1, 0, 0, 8),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Parent = row,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
 
         local lowRatio = (max > min) and Clamp01((defaultLow - min) / (max - min)) or 0
         local highRatio = (max > min) and Clamp01((defaultHigh - min) / (max - min)) or 0
@@ -2906,31 +2303,25 @@ local function CreateElementFactory(context)
             Parent = track,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
-
         local lowKnob = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(lowRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Theme.TextBright,
+            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = lowKnob })
 
         local highKnob = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(highRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Theme.TextBright,
+            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = highKnob })
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
@@ -3022,7 +2413,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(0.5, 0, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.TextDim,
+            TextColor3 = Color3.fromRGB(160, 160, 160),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = key,
             Parent = row,
@@ -3035,7 +2426,7 @@ local function CreateElementFactory(context)
             BackgroundTransparency = 1,
             Font = Enum.Font.GothamMedium,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Right,
             Text = tostring(value),
             Parent = row,
@@ -3066,7 +2457,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -90, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -3144,11 +2535,10 @@ local function CreateElementFactory(context)
 
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -72, 0, 18),
+            Size = UDim2.new(1, -48, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(sliderDefault),
             Parent = row,
@@ -3156,16 +2546,14 @@ local function CreateElementFactory(context)
 
         local box = NewInstance("TextButton", {
             AnchorPoint = Vector2.new(1, 0),
-            Position = UDim2.new(1, -12, 0, 0),
+            Position = UDim2.new(1, 0, 0, 0),
             Size = UDim2.fromOffset(20, 18),
-            BackgroundColor3 = Theme.Element,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
             Parent = row,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 5), Parent = box })
 
         local toggleFill = NewInstance("Frame", {
             Size = UDim2.fromScale(1, 1),
@@ -3175,17 +2563,13 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 5), Parent = toggleFill })
-
         local track = NewInstance("Frame", {
-            Position = UDim2.fromOffset(12, 23),
-            Size = UDim2.new(1, -24, 0, 8),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 23),
+            Size = UDim2.new(1, 0, 0, 8),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Parent = row,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
 
         local fillRatio = (max > min) and Clamp01((sliderDefault - min) / (max - min)) or 0
 
@@ -3196,19 +2580,15 @@ local function CreateElementFactory(context)
             Parent = track,
         })
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = sliderFill })
-
         local knob = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(fillRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Theme.TextBright,
+            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 
         Accent.Changed:Connect(function(color)
             toggleFill.BackgroundColor3 = color
@@ -3275,32 +2655,31 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
         })
 
         local box = NewInstance("TextButton", {
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 24),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 24),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
@@ -3317,41 +2696,24 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
-        local arrowIcon = nil
-        if CreateIcon then
-            arrowIcon = CreateIcon(box, "chevron-down", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.new(1, -16, 0.5, 0),
-                Pixels = 15,
-                Color = Accent.Value,
-                ZIndex = box.ZIndex + 1,
-            })
-            if arrowIcon then arrow.Text = "" end
-        end
-
         Accent.Changed:Connect(function(color)
             arrow.TextColor3 = color
-            if arrowIcon then arrowIcon.ImageColor3 = color end
         end)
 
         local panelHeight = math.min(#options, 5) * 24 + 28
 
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
-
-        local optionsHolder = NewInstance("CanvasGroup", {
+        local optionsHolder = NewInstance("Frame", {
             Name = "SearchableDropdownHolder_" .. name,
-            BackgroundColor3 = Theme.Popup,
+            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, panelHeight),
             Visible = false,
-            GroupTransparency = 1,
-            ClipsDescendants = true,
             ZIndex = 200,
             Parent = ScreenGui,
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -3359,20 +2721,18 @@ local function CreateElementFactory(context)
         local searchBox = NewInstance("TextBox", {
             Position = UDim2.fromOffset(4, 4),
             Size = UDim2.new(1, -8, 0, 20),
-            BackgroundColor3 = Theme.ElementActive,
+            BackgroundColor3 = Color3.fromRGB(26, 26, 26),
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 12,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             PlaceholderText = "Search...",
-            PlaceholderColor3 = Theme.TextDim,
+            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
             ClearTextOnFocus = false,
             Text = "",
             ZIndex = optionsHolder.ZIndex + 1,
             Parent = optionsHolder,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = searchBox })
 
         NewInstance("UIPadding", {
             PaddingLeft = UDim.new(0, 6),
@@ -3401,8 +2761,7 @@ local function CreateElementFactory(context)
 
         local function Close()
             isOpen = false
-            AnimatePopup(optionsHolder, false)
-            if arrowIcon then TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 0 }):Play() end
+            optionsHolder.Visible = false
         end
 
         local function RebuildOptions(filterText)
@@ -3415,13 +2774,13 @@ local function CreateElementFactory(context)
             for _, opt in ipairs(options) do
                 if filterText == "" or tostring(opt):lower():find(filterText, 1, true) then
                     local optBtn = NewInstance("TextButton", {
-                        BackgroundColor3 = Theme.Popup,
+                        BackgroundColor3 = Color3.fromRGB(16, 16, 16),
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
                         Size = UDim2.new(1, 0, 0, 24),
                         Font = Enum.Font.Gotham,
                         TextSize = 13,
-                        TextColor3 = Theme.Text,
+                        TextColor3 = Color3.fromRGB(200, 200, 200),
                         TextXAlignment = Enum.TextXAlignment.Left,
                         Text = "  " .. tostring(opt),
                         ZIndex = listHolder.ZIndex + 1,
@@ -3452,9 +2811,8 @@ local function CreateElementFactory(context)
             optionsHolder.Size = UDim2.fromOffset(boxSize.X, panelHeight)
             local x, y = ClampOpenPosition(boxPos.X, boxPos.Y + boxSize.Y + 2, boxSize.X, panelHeight)
             optionsHolder.Position = UDim2.fromOffset(x, y)
+            optionsHolder.Visible = true
             isOpen = true
-            AnimatePopup(optionsHolder, true)
-            if arrowIcon then TweenService:Create(arrowIcon, TweenInfo.new(0.12), { Rotation = 180 }):Play() end
             searchBox.Text = ""
         end
 
@@ -3502,26 +2860,25 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(1, -24, 0, 16),
+            Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
         })
 
         local box = NewInstance("TextBox", {
-            Position = UDim2.fromOffset(12, 20),
-            Size = UDim2.new(1, -24, 0, 18),
-            BackgroundColor3 = Theme.Element,
+            Position = UDim2.fromOffset(0, 20),
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             PlaceholderText = placeholder,
-            PlaceholderColor3 = Theme.TextDim,
+            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
             ClearTextOnFocus = false,
             Text = tostring(default),
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -3533,12 +2890,10 @@ local function CreateElementFactory(context)
         end
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(60, 60, 60),
             Thickness = 1,
             Parent = box,
         })
-
-        NewInstance("UICorner", { CornerRadius = UDim.new(0, 8), Parent = box })
 
         NewInstance("UIPadding", {
             PaddingLeft = UDim.new(0, 6),
@@ -3551,7 +2906,7 @@ local function CreateElementFactory(context)
         end)
 
         box.FocusLost:Connect(function(enterPressed)
-            boxStroke.Color = Theme.Outline
+            boxStroke.Color = Color3.fromRGB(60, 60, 60)
 
             if numeric then
                 local n = tonumber(box.Text)
@@ -3600,7 +2955,7 @@ local function CreateElementFactory(context)
 
         local container = NewInstance("Frame", {
             Name = "Group_" .. name,
-            BackgroundColor3 = Theme.ElementActive,
+            BackgroundColor3 = Color3.fromRGB(18, 18, 18),
             BorderSizePixel = 0,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
@@ -3608,13 +2963,8 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Theme.Outline,
+            Color = Color3.fromRGB(50, 50, 50),
             Thickness = 1,
-            Parent = container,
-        })
-
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, Theme.ElementRounding),
             Parent = container,
         })
 
@@ -3632,23 +2982,13 @@ local function CreateElementFactory(context)
             Parent = container,
         })
 
-        local groupIcon = nil
-        if config.Icon and CreateIcon then
-            groupIcon = CreateIcon(header, config.Icon, {
-                Pixels = 15,
-                Position = UDim2.new(0, 10, 0.5, 0),
-                Color = Theme.Text,
-                ZIndex = header.ZIndex + 1,
-            })
-        end
-
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(groupIcon and 34 or 10, 0),
-            Size = UDim2.new(1, groupIcon and -68 or -44, 1, 0),
+            Position = UDim2.fromOffset(8, 0),
+            Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.GothamBold,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(210, 210, 210),
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = header,
@@ -3666,42 +3006,17 @@ local function CreateElementFactory(context)
             Parent = header,
         })
 
-        local chevronIcon = nil
-        if CreateIcon then
-            chevronIcon = CreateIcon(header, "chevron-down", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.new(1, -16, 0.5, 0),
-                Pixels = 15,
-                Color = Accent.Value,
-                Rotation = startOpen and 0 or -90,
-                ZIndex = header.ZIndex + 1,
-            })
-            if chevronIcon then chevron.Text = "" end
-        end
-
         Accent.Changed:Connect(function(color)
             chevron.TextColor3 = color
-            if chevronIcon then chevronIcon.ImageColor3 = color end
         end)
 
-        local bodyClip = NewInstance("Frame", {
-            Name = "BodyClip",
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 0),
-            ClipsDescendants = true,
-            Visible = startOpen,
-            Parent = container,
-        })
-
-        local body = NewInstance("CanvasGroup", {
+        local body = NewInstance("Frame", {
             Name = "Body",
             BackgroundTransparency = 1,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
-            Visible = true,
-            GroupTransparency = startOpen and 0 or 1,
-            Interactable = startOpen,
-            Parent = bodyClip,
+            Visible = startOpen,
+            Parent = container,
         })
 
         NewInstance("UIPadding", {
@@ -3718,99 +3033,11 @@ local function CreateElementFactory(context)
         })
 
         local isOpen = startOpen
-        local groupTransition = 0
-        local bodyTween = nil
-        local bodySizeTween = nil
-        local chevronTween = nil
-
-        local function GetBodyHeight()
-            return math.max(body.AbsoluteSize.Y, bodyLayout.AbsoluteContentSize.Y + 10)
-        end
-
-        local function SetGroupOpen(open, animated)
-            open = open == true
-            isOpen = open
-            groupTransition = groupTransition + 1
-            local token = groupTransition
-            if bodyTween then bodyTween:Cancel() end
-            if bodySizeTween then bodySizeTween:Cancel() end
-            if chevronTween then chevronTween:Cancel() end
-
-            if chevronIcon then
-                if animated then
-                    chevronTween = TweenService:Create(
-                        chevronIcon,
-                        TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                        { Rotation = open and 0 or -90 }
-                    )
-                    chevronTween:Play()
-                else
-                    chevronIcon.Rotation = open and 0 or -90
-                end
-            else
-                chevron.Text = open and "v" or ">"
-            end
-
-            if not animated then
-                body.GroupTransparency = open and 0 or 1
-                SetTreeInteractable(body, open)
-                bodyClip.Size = UDim2.new(1, 0, 0, open and GetBodyHeight() or 0)
-                bodyClip.Visible = open
-                return
-            end
-
-            if open then
-                if not bodyClip.Visible then
-                    body.GroupTransparency = 1
-                    bodyClip.Size = UDim2.new(1, 0, 0, 0)
-                end
-                bodyClip.Visible = true
-                SetTreeInteractable(body, true)
-            else
-                SetTreeInteractable(body, false)
-            end
-            bodyTween = TweenService:Create(
-                body,
-                TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { GroupTransparency = open and 0 or 1 }
-            )
-            bodyTween:Play()
-            bodySizeTween = TweenService:Create(
-                bodyClip,
-                TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { Size = UDim2.new(1, 0, 0, open and GetBodyHeight() or 0) }
-            )
-            bodySizeTween:Play()
-            if not open then
-                bodySizeTween.Completed:Connect(function()
-                    if token == groupTransition and not isOpen then bodyClip.Visible = false end
-                end)
-            end
-        end
-
-        bodyLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            if not isOpen then return end
-            task.defer(function()
-                if isOpen and bodyClip.Parent then
-                    if bodySizeTween then bodySizeTween:Cancel() end
-                    bodySizeTween = TweenService:Create(
-                        bodyClip,
-                        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                        { Size = UDim2.new(1, 0, 0, GetBodyHeight()) }
-                    )
-                    bodySizeTween:Play()
-                end
-            end)
-        end)
-
-        task.defer(function()
-            if bodyClip.Parent then
-                bodyClip.Size = UDim2.new(1, 0, 0, startOpen and GetBodyHeight() or 0)
-            end
-        end)
 
         header.MouseButton1Click:Connect(function()
-            SetGroupOpen(not isOpen, true)
+            isOpen = not isOpen
+            body.Visible = isOpen
+            chevron.Text = isOpen and "v" or ">"
         end)
 
         local Group = {}
@@ -3900,7 +3127,9 @@ local function CreateElementFactory(context)
             return Factory.Group(body, cfg)
         end
         function Group:SetOpen(open)
-            SetGroupOpen(open, true)
+            isOpen = open
+            body.Visible = isOpen
+            chevron.Text = isOpen and "v" or ">"
         end
 
         return Group
@@ -3912,17 +3141,6 @@ end
 local function CreateTab(context, tabName, isFirst)
     local Factory = context.Factory
     local ScrollHolder = context.ScrollHolder
-
-    local tabContainer = NewInstance("CanvasGroup", {
-        Name = tabName .. "_Container",
-        BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1),
-        Visible = isFirst,
-        GroupTransparency = isFirst and 0 or 1,
-        Interactable = isFirst,
-        ZIndex = ScrollHolder.ZIndex + 1,
-        Parent = ScrollHolder,
-    })
 
     local scroll = NewInstance("ScrollingFrame", {
         Name = tabName .. "_Scroll",
@@ -3937,8 +3155,8 @@ local function CreateTab(context, tabName, isFirst)
         ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
         ClipsDescendants = true,
         Visible = isFirst,
-        ZIndex = tabContainer.ZIndex + 1,
-        Parent = tabContainer,
+        ZIndex = ScrollHolder.ZIndex + 1,
+        Parent = ScrollHolder,
     })
 
     local layout = NewInstance("UIListLayout", {
@@ -3964,7 +3182,6 @@ local function CreateTab(context, tabName, isFirst)
     local Tab = {}
     Tab.Name = tabName
     Tab.Instance = scroll
-    Tab.Container = tabContainer
 
     function Tab:AddLabel(text)
         return Factory.Label(scroll, text)
@@ -4086,89 +3303,11 @@ end
 local function CreateWindow(config)
     config = config or {}
 
-    local iconSheet = config.IconSheet or "48px"
-    local iconAtlas = nil
-    if config.LoadIcons == false then
-        iconAtlas = type(config.Icons) == "table" and config.Icons or nil
-    else
-        iconAtlas = LoadIconAtlas(config.Icons or config.IconURL or DEFAULT_ICON_URL)
-    end
-    local function CreateWindowIcon(parent, name, iconConfig)
-        iconConfig = iconConfig or {}
-        local resolvedConfig = {}
-        for key, value in pairs(iconConfig) do resolvedConfig[key] = value end
-        if resolvedConfig.Sheet == nil then resolvedConfig.Sheet = iconSheet end
-        return CreateAtlasIcon(iconAtlas, parent, name, resolvedConfig)
-    end
-
-    local function GetViewportSize()
-        local camera = workspace.CurrentCamera
-        local viewport = camera and camera.ViewportSize
-        if viewport and viewport.X > 0 and viewport.Y > 0 then return viewport end
-        return Vector2.new(1920, 1080)
-    end
-
-    local function IsFinitePositive(value)
-        return type(value) == "number" and value == value and value > 0 and value < 10000000
-    end
-
-    local function SanitizePixelSize(value, fallback)
-        if typeof(value) ~= "Vector2" then return fallback end
-        local x = IsFinitePositive(value.X) and value.X or fallback.X
-        local y = IsFinitePositive(value.Y) and value.Y or fallback.Y
-        return Vector2.new(x, y)
-    end
-
-    local function ResolveSizeValue(value, viewport, fallback)
-        if typeof(value) == "Vector2" then return SanitizePixelSize(value, fallback) end
-        if typeof(value) == "UDim2" then
-            return SanitizePixelSize(Vector2.new(
-                value.X.Scale * viewport.X + value.X.Offset,
-                value.Y.Scale * viewport.Y + value.Y.Offset
-            ), fallback)
-        end
-        return fallback
-    end
-
     local windowName = config.Name or "Lurk"
-    local initialViewport = GetViewportSize()
-    local availableSize = Vector2.new(math.max(1, initialViewport.X - 16), math.max(1, initialViewport.Y - 16))
-    local defaultPixelSize = Vector2.new(math.min(680, availableSize.X), math.min(460, availableSize.Y))
-    local requestedPixelSize = ResolveSizeValue(config.Size, initialViewport, defaultPixelSize)
-    local provisionalWidth = math.min(requestedPixelSize.X, availableSize.X)
-    local sidebarMinimum = provisionalWidth < 260 and 72 or 96
-    local contentMinimum = provisionalWidth < 260 and 80 or 140
-    local defaultSidebar = provisionalWidth < 560 and math.clamp(math.floor(provisionalWidth * 0.34), sidebarMinimum, 150) or 180
-    local requestedSidebar = tonumber(config.SidebarWidth) or defaultSidebar
-    local sidebarWidth = math.clamp(requestedSidebar, sidebarMinimum, math.max(sidebarMinimum, provisionalWidth - contentMinimum))
-
-    local defaultMinimumSize = Vector2.new(math.max(240, sidebarWidth + 140), 200)
-    local minimumWindowSize = ResolveSizeValue(config.MinSize, initialViewport, defaultMinimumSize)
-    local maximumWindowSize = ResolveSizeValue(config.MaxSize, initialViewport, Vector2.new(1400, 1000))
-    maximumWindowSize = Vector2.new(
-        math.max(maximumWindowSize.X, minimumWindowSize.X),
-        math.max(maximumWindowSize.Y, minimumWindowSize.Y)
-    )
-    local effectiveMinimum = Vector2.new(
-        math.min(minimumWindowSize.X, availableSize.X),
-        math.min(minimumWindowSize.Y, availableSize.Y)
-    )
-    local effectiveMaximum = Vector2.new(
-        math.max(effectiveMinimum.X, math.min(maximumWindowSize.X, availableSize.X)),
-        math.max(effectiveMinimum.Y, math.min(maximumWindowSize.Y, availableSize.Y))
-    )
-    local initialPixelSize = Vector2.new(
-        math.clamp(requestedPixelSize.X, effectiveMinimum.X, effectiveMaximum.X),
-        math.clamp(requestedPixelSize.Y, effectiveMinimum.Y, effectiveMaximum.Y)
-    )
-    sidebarWidth = math.clamp(
-        sidebarWidth,
-        initialPixelSize.X < 260 and 72 or 96,
-        math.max(initialPixelSize.X < 260 and 72 or 96, initialPixelSize.X - (initialPixelSize.X < 260 and 80 or 140))
-    )
-    local windowSize = UDim2.fromOffset(math.floor(initialPixelSize.X + 0.5), math.floor(initialPixelSize.Y + 0.5))
+    local windowSize = config.Size or UDim2.fromOffset(430, 320)
+    local sidebarWidth = config.SidebarWidth or 108
     local openButtonText = config.OpenButtonText or string.sub(windowName, 1, 1)
-    local startColor = config.AccentColor or Theme.Accent
+    local startColor = config.AccentColor or Color3.fromRGB(255, 30, 30)
 
     local existing = GuiParent:FindFirstChild("LurkGui_" .. windowName)
     if existing then
@@ -4199,66 +3338,36 @@ local function CreateWindow(config)
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
         Size = windowSize,
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BorderSizePixel = 0,
-        ClipsDescendants = true,
+        ClipsDescendants = false,
         Visible = false,
-        Interactable = false,
         ZIndex = 2,
         Parent = ScreenGui,
     })
 
-    NewInstance("UICorner", {
-        CornerRadius = UDim.new(0, Theme.WindowRounding),
-        Parent = mainWindow,
-    })
+    local function AddLayer(parent, inset, color, zIndexOffset)
+        return NewInstance("Frame", {
+            BackgroundColor3 = color,
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(inset, inset),
+            Size = UDim2.new(1, -inset * 2, 1, -inset * 2),
+            ZIndex = mainWindow.ZIndex + zIndexOffset,
+            Parent = parent,
+        })
+    end
 
-    local windowSurface = NewInstance("CanvasGroup", {
-        Name = "WindowSurface",
-        Size = UDim2.fromScale(1, 1),
-        BackgroundColor3 = Theme.Window,
-        BackgroundTransparency = Theme.WindowTransparency,
-        BorderSizePixel = 0,
-        ClipsDescendants = true,
-        GroupTransparency = 1,
-        Interactable = false,
-        ZIndex = mainWindow.ZIndex,
-        Parent = mainWindow,
-    })
-
-    NewInstance("UICorner", {
-        CornerRadius = UDim.new(0, Theme.WindowRounding),
-        Parent = windowSurface,
-    })
-
-    NewInstance("UIStroke", {
-        Color = Theme.Border,
-        Thickness = 1,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = windowSurface,
-    })
-
-    -- The old Lurk skin used four nested bevel layers. Everness uses one
-    -- clean surface and a single outline.
-    local bg2 = windowSurface
-
-    local rightOutline = NewInstance("Frame", {
-        Name = "SidebarDivider",
-        Position = UDim2.fromOffset(sidebarWidth, 0),
-        Size = UDim2.new(0, 1, 1, 0),
-        BackgroundColor3 = Theme.Border,
-        BorderSizePixel = 0,
-        Active = false,
-        ZIndex = bg2.ZIndex + 1,
-        Parent = bg2,
-    })
+    AddLayer(mainWindow, 1, Color3.fromRGB(60, 60, 60), 1)
+    local bg1 = AddLayer(mainWindow, 2, Color3.fromRGB(40, 40, 40), 2)
+    AddLayer(bg1, 3, Color3.fromRGB(60, 60, 60), 1)
+    local bg2 = AddLayer(bg1, 4, Color3.fromRGB(12, 12, 12), 2)
 
     local titleBar = NewInstance("Frame", {
         Name = "TitleBar",
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(sidebarWidth + 1, 1),
-        Size = UDim2.new(1, -sidebarWidth - 2, 0, 48),
+        Position = UDim2.fromOffset(6, 6),
+        Size = UDim2.new(1, -12, 0, 24),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
@@ -4268,78 +3377,79 @@ local function CreateWindow(config)
         Size = UDim2.fromScale(1, 1),
         Font = Enum.Font.GothamBold,
         TextSize = 15,
-        TextColor3 = Theme.Text,
+        TextColor3 = Accent.Value,
         Text = windowName,
         ZIndex = titleBar.ZIndex + 1,
         Parent = titleBar,
     })
 
+    Accent.Changed:Connect(function(color)
+        titleText.TextColor3 = color
+    end)
+
     local sidebar = NewInstance("Frame", {
         Name = "Sidebar",
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.new(0, sidebarWidth, 1, 0),
+        Position = UDim2.fromOffset(6, 33),
+        Size = UDim2.new(0, sidebarWidth - 6, 1, -39),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
 
-    local sidebarInner = sidebar
+    AddLayer(sidebar, 1, Color3.fromRGB(41, 41, 41), 1)
+    local sidebarInner = AddLayer(sidebar, 2, Color3.fromRGB(0, 0, 0), 2)
 
-    local logoIconName = config.LogoIcon or config.Icon
     local logoLabel = NewInstance("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 80),
-        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, 0, 0, 58),
+        Position = UDim2.fromOffset(0, 8),
         Font = Enum.Font.GothamBlack,
-        Text = logoIconName and "" or openButtonText,
-        TextSize = 32,
-        TextColor3 = Theme.Text,
+        Text = openButtonText,
+        TextSize = 38,
+        TextColor3 = Color3.fromRGB(220, 220, 220),
         ZIndex = sidebarInner.ZIndex + 1,
         Parent = sidebarInner,
     })
 
-    local logoIcon = nil
-    if logoIconName then
-        logoIcon = CreateWindowIcon(sidebarInner, logoIconName, {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0, 0, 50),
-            Pixels = tonumber(config.LogoIconSize) or 48,
-            Color = config.LogoColor or Theme.TextBright,
-            ZIndex = logoLabel.ZIndex + 1,
-        })
-        if not logoIcon then logoLabel.Text = openButtonText end
-    end
+    local logoGlow = NewInstance("TextLabel", {
+        BackgroundTransparency = 1,
+        Size = logoLabel.Size,
+        Position = logoLabel.Position,
+        Font = logoLabel.Font,
+        Text = logoLabel.Text,
+        TextSize = logoLabel.TextSize + 6,
+        TextColor3 = Accent.Value,
+        TextTransparency = 0.7,
+        ZIndex = logoLabel.ZIndex - 1,
+        Parent = sidebarInner,
+    })
+
+    Accent.Changed:Connect(function(color)
+        logoGlow.TextColor3 = color
+    end)
 
     local contentArea = NewInstance("Frame", {
         Name = "ContentArea",
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(sidebarWidth + 1, 51),
-        Size = UDim2.new(1, -sidebarWidth - 2, 1, -52),
+        Position = UDim2.fromOffset(sidebarWidth, 33),
+        Size = UDim2.new(1, -sidebarWidth - 9, 1, -39),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
-    local contentInner = contentArea
 
-    local topSeparator = NewInstance("Frame", {
-        Name = "TopSeparator",
-        Position = UDim2.fromOffset(sidebarWidth, 50),
-        Size = UDim2.new(1, -sidebarWidth, 0, 1),
-        BackgroundColor3 = Theme.Border,
-        BorderSizePixel = 0,
-        ZIndex = bg2.ZIndex + 2,
-        Parent = bg2,
-    })
+    AddLayer(contentArea, 1, Color3.fromRGB(40, 40, 40), 1)
+    local contentInner = AddLayer(contentArea, 2, Color3.fromRGB(30, 30, 30), 2)
 
     local tabTitle = NewInstance("TextLabel", {
         Name = "TabTitle",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(10, 4),
-        Size = UDim2.new(1, -20, 0, 24),
+        Position = UDim2.fromOffset(16, 8),
+        Size = UDim2.new(1, -32, 0, 24),
         Font = Enum.Font.GothamBold,
-        TextSize = 14,
-        TextColor3 = Theme.Text,
+        TextSize = 17,
+        TextColor3 = Color3.fromRGB(200, 200, 200),
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = "",
         ZIndex = contentInner.ZIndex + 1,
@@ -4349,8 +3459,8 @@ local function CreateWindow(config)
     local scrollHolder = NewInstance("Frame", {
         Name = "ScrollHolder",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(10, 34),
-        Size = UDim2.new(1, -20, 1, -44),
+        Position = UDim2.fromOffset(12, 36),
+        Size = UDim2.new(1, -24, 1, -42),
         ZIndex = contentInner.ZIndex + 1,
         Parent = contentInner,
     })
@@ -4359,8 +3469,8 @@ local function CreateWindow(config)
         Name = "TabsHolder",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(10, 80),
-        Size = UDim2.new(1, -20, 1, -90),
+        Position = UDim2.fromOffset(8, 84),
+        Size = UDim2.new(1, -16, 1, -92),
         CanvasSize = UDim2.new(0, 0, 0, 0),
         ScrollingDirection = Enum.ScrollingDirection.Y,
         ScrollBarThickness = 0,
@@ -4371,14 +3481,14 @@ local function CreateWindow(config)
     })
 
     local tabsListLayout = NewInstance("UIListLayout", {
-        Padding = UDim.new(0, 5),
+        Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = tabsSidebarHolder,
     })
 
     NewInstance("UIPadding", {
-        PaddingLeft = UDim.new(0, 10),
-        PaddingRight = UDim.new(0, 10),
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
         Parent = tabsSidebarHolder,
     })
 
@@ -4389,163 +3499,40 @@ local function CreateWindow(config)
     local Factory = CreateElementFactory({
         ScreenGui = ScreenGui,
         Accent = Accent,
-        CreateIcon = CreateWindowIcon,
     })
 
     local Window = {}
-    local windowConnections = {}
     Window.Name = windowName
     Window.Instance = mainWindow
-    Window.Surface = windowSurface
     Window.ScreenGui = ScreenGui
     Window.Accent = Accent
-    Window.Icons = iconAtlas
-    Window.LogoIcon = logoIcon
-
-    function Window:GetIcon(name, sheetName)
-        local descriptor = ResolveIcon(iconAtlas, name, sheetName or iconSheet)
-        if not descriptor then return nil, nil, nil end
-        return descriptor.Image, descriptor.Offset, descriptor.Size
-    end
-
-    function Window:GetIconDescriptor(name, sheetName)
-        return ResolveIcon(iconAtlas, name, sheetName or iconSheet)
-    end
-
-    function Window:CreateIcon(parent, name, iconConfig)
-        return CreateWindowIcon(parent, name, iconConfig)
-    end
-
-    function Window:SetIconAtlas(source, sheetName)
-        local resolved = LoadIconAtlas(source)
-        if not resolved then return false end
-        iconAtlas = resolved
-        Window.Icons = resolved
-        if sheetName then iconSheet = sheetName end
-        return true
-    end
-
-    function Window:SetIcon(name)
-        if logoIcon then
-            logoIcon:Destroy()
-            logoIcon = nil
-        end
-        logoLabel.Text = name and "" or openButtonText
-        if name then
-            logoIcon = CreateWindowIcon(sidebarInner, name, {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.new(0.5, 0, 0, 50),
-                Pixels = tonumber(config.LogoIconSize) or 48,
-                Color = config.LogoColor or Theme.TextBright,
-                ZIndex = logoLabel.ZIndex + 1,
-            })
-            if not logoIcon then logoLabel.Text = openButtonText end
-        end
-        Window.LogoIcon = logoIcon
-        return logoIcon
-    end
 
     local tabs = {}
     local tabButtons = {}
-    local tabIcons = {}
     local selectedTab = nil
-    local tabTransition = 0
-    local tabContentTweens = {}
 
     local function SelectTab(tabName)
         if not tabs[tabName] then
             return
         end
-        if selectedTab == tabName then return end
-        tabTransition = tabTransition + 1
-        local token = tabTransition
-        for _, tween in ipairs(tabContentTweens) do tween:Cancel() end
-        table.clear(tabContentTweens)
-
         selectedTab = tabName
         tabTitle.Text = tabName
-        local targetTab = tabs[tabName]
-        local targetContainer = targetTab.Container or targetTab.Instance
-        local fadingOldContent = false
-
         for name, tab in pairs(tabs) do
-            local container = tab.Container or tab.Instance
-            if name ~= tabName and container.Visible then
-                fadingOldContent = true
-                SetTreeInteractable(container, false)
-                local tween = TweenService:Create(
-                    container,
-                    TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    { GroupTransparency = 1 }
-                )
-                table.insert(tabContentTweens, tween)
-                tween:Play()
-            end
+            tab.Instance.Visible = (name == tabName)
         end
-
-        local function RevealTarget()
-            if token ~= tabTransition or not targetContainer.Parent then return end
-            for name, tab in pairs(tabs) do
-                local container = tab.Container or tab.Instance
-                if name ~= tabName then
-                    container.Visible = false
-                    SetTreeInteractable(container, false)
-                    container.GroupTransparency = 1
-                    tab.Instance.Visible = false
-                end
-            end
-            if not targetContainer.Visible then targetContainer.GroupTransparency = 1 end
-            targetContainer.Visible = true
-            SetTreeInteractable(targetContainer, true)
-            targetTab.Instance.Visible = true
-            targetTab.Instance.Position = UDim2.fromOffset(0, 4)
-            local fadeIn = TweenService:Create(
-                targetContainer,
-                TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { GroupTransparency = 0 }
-            )
-            local slideIn = TweenService:Create(
-                targetTab.Instance,
-                TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { Position = UDim2.fromOffset(0, 0) }
-            )
-            table.insert(tabContentTweens, fadeIn)
-            table.insert(tabContentTweens, slideIn)
-            fadeIn:Play()
-            slideIn:Play()
-        end
-
-        if fadingOldContent then
-            task.delay(0.08, RevealTarget)
-        else
-            RevealTarget()
-        end
-
         for name, btn in pairs(tabButtons) do
-            local active = name == tabName
-            TweenService:Create(
-                btn,
-                TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {
-                    TextColor3 = active and Theme.TextBright or Theme.TextDim,
-                    BackgroundTransparency = active and (1 - 8 / 255) or 1,
-                }
-            ):Play()
-            local icon = tabIcons[name]
-            if icon then
-                TweenService:Create(
-                    icon,
-                    TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    { ImageColor3 = active and Accent.Value or Theme.TextDim }
-                ):Play()
-            end
+            btn.TextColor3 = (name == tabName) and Accent.Value or Color3.fromRGB(200, 200, 200)
         end
         CloseAllOverlays()
     end
 
-    function Window:AddTab(tabConfig)
-        local tabName = type(tabConfig) == "table" and tostring(tabConfig.Name or tabConfig.Title or "Tab") or tostring(tabConfig)
-        local tabIconName = type(tabConfig) == "table" and tabConfig.Icon or nil
+    Accent.Changed:Connect(function(color)
+        if selectedTab and tabButtons[selectedTab] then
+            tabButtons[selectedTab].TextColor3 = color
+        end
+    end)
+
+    function Window:AddTab(tabName)
         if tabs[tabName] then
             return tabs[tabName]
         end
@@ -4562,64 +3549,24 @@ local function CreateWindow(config)
         end
 
         local btn = NewInstance("TextButton", {
-            BackgroundColor3 = Theme.TextBright,
-            BackgroundTransparency = isFirst and (1 - 8 / 255) or 1,
-            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 26),
             LayoutOrder = index,
             Font = Enum.Font.GothamMedium,
             TextSize = 15,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = tabName,
-            TextColor3 = isFirst and Theme.TextBright or Theme.TextDim,
+            TextColor3 = isFirst and Accent.Value or Color3.fromRGB(200, 200, 200),
             AutoButtonColor = false,
             ZIndex = tabsSidebarHolder.ZIndex + 1,
             Parent = tabsSidebarHolder,
         })
-
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, Theme.ElementRounding),
-            Parent = btn,
-        })
-
-        local tabIcon = nil
-        if tabIconName then
-            tabIcon = CreateWindowIcon(btn, tabIconName, {
-                Pixels = 16,
-                Position = UDim2.new(0, -26, 0.5, 0),
-                Color = isFirst and Accent.Value or Theme.TextDim,
-                ZIndex = btn.ZIndex + 1,
-            })
-        end
-        NewInstance("UIPadding", {
-            PaddingLeft = UDim.new(0, tabIcon and 38 or 12),
-            PaddingRight = UDim.new(0, 12),
-            Parent = btn,
-        })
-
-        btn.MouseEnter:Connect(function()
-            if selectedTab ~= tabName then
-                TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundTransparency = 1 - 4 / 255, TextColor3 = Theme.Text }):Play()
-                if tabIcon then
-                    TweenService:Create(tabIcon, TweenInfo.new(0.1), { ImageColor3 = Theme.Text }):Play()
-                end
-            end
-        end)
-
-        btn.MouseLeave:Connect(function()
-            if selectedTab ~= tabName then
-                TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundTransparency = 1, TextColor3 = Theme.TextDim }):Play()
-                if tabIcon then
-                    TweenService:Create(tabIcon, TweenInfo.new(0.1), { ImageColor3 = Theme.TextDim }):Play()
-                end
-            end
-        end)
 
         btn.MouseButton1Click:Connect(function()
             SelectTab(tabName)
         end)
 
         tabButtons[tabName] = btn
-        tabIcons[tabName] = tabIcon
 
         if isFirst then
             SelectTab(tabName)
@@ -4627,12 +3574,6 @@ local function CreateWindow(config)
 
         return tab
     end
-
-    Accent.Changed:Connect(function(color)
-        if selectedTab and tabIcons[selectedTab] then
-            tabIcons[selectedTab].ImageColor3 = color
-        end
-    end)
 
     function Window:SelectTab(tabName)
         SelectTab(tabName)
@@ -4644,83 +3585,52 @@ local function CreateWindow(config)
 
     local menuOpen = false
     local animating = false
-    local resizing = false
-    local menuTransition = 0
-    local menuFadeTween = nil
-    local menuScaleTween = nil
-    local menuScale = NewInstance("UIScale", {
-        Scale = 0.985,
-        Parent = mainWindow,
-    })
 
     local function ApplyOpenState(open)
-        menuTransition = menuTransition + 1
-        local token = menuTransition
-        if menuFadeTween then menuFadeTween:Cancel() end
-        if menuScaleTween then menuScaleTween:Cancel() end
-
         if not open then
             CloseAllOverlays()
         end
 
+        local collapsedSize = UDim2.new(
+            windowSize.X.Scale * 0.85,
+            windowSize.X.Offset * 0.85,
+            windowSize.Y.Scale * 0.85,
+            windowSize.Y.Offset * 0.85
+        )
+
         if open then
-            if not mainWindow.Visible then
-                windowSurface.GroupTransparency = 1
-                menuScale.Scale = 0.985
-            end
             mainWindow.Visible = true
-            SetTreeInteractable(mainWindow, true)
-            SetTreeInteractable(windowSurface, true)
-            menuFadeTween = TweenService:Create(
-                windowSurface,
-                TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-                { GroupTransparency = 0 }
+            mainWindow.Size = collapsedSize
+            local tween = TweenService:Create(
+                mainWindow,
+                TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                { Size = windowSize }
             )
-            menuScaleTween = TweenService:Create(
-                menuScale,
-                TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-                { Scale = 1 }
-            )
-            menuFadeTween:Play()
-            menuScaleTween:Play()
-            menuScaleTween.Completed:Connect(function()
-                if token == menuTransition then animating = false end
+            tween:Play()
+            tween.Completed:Connect(function()
+                animating = false
             end)
         else
-            SetTreeInteractable(mainWindow, false)
-            SetTreeInteractable(windowSurface, false)
-            if not mainWindow.Visible then
+            local tween = TweenService:Create(
+                mainWindow,
+                TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+                { Size = collapsedSize }
+            )
+            tween:Play()
+            tween.Completed:Connect(function()
+                mainWindow.Visible = false
                 animating = false
-                return
-            end
-            menuFadeTween = TweenService:Create(
-                windowSurface,
-                TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { GroupTransparency = 1 }
-            )
-            menuScaleTween = TweenService:Create(
-                menuScale,
-                TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                { Scale = 0.985 }
-            )
-            menuFadeTween:Play()
-            menuScaleTween:Play()
-            menuFadeTween.Completed:Connect(function()
-                if token == menuTransition and not menuOpen then
-                    mainWindow.Visible = false
-                    animating = false
-                end
             end)
         end
     end
 
     function Window:Toggle(open)
-        if resizing then return end
+        if animating then
+            return
+        end
         if open == nil then
             open = not menuOpen
         end
-        open = open == true
-        if open == menuOpen then return end
         menuOpen = open
         animating = true
         ApplyOpenState(open)
@@ -4730,44 +3640,34 @@ local function CreateWindow(config)
         Name = "OpenMenuButton",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -10, 0.5, 0),
-        Size = UDim2.fromOffset(46, 46),
-        BackgroundColor3 = Theme.Popup,
-        BackgroundTransparency = Theme.PopupTransparency,
+        Size = UDim2.fromOffset(62, 62),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Font = Enum.Font.GothamBold,
-        TextSize = 18,
-        Text = config.OpenButtonIcon and "" or openButtonText,
-        TextColor3 = Theme.Text,
+        TextSize = 24,
+        Text = openButtonText,
+        TextColor3 = Accent.Value,
         ZIndex = 100,
         Parent = ScreenGui,
     })
 
-    local openButtonIcon = nil
-    if config.OpenButtonIcon then
-        openButtonIcon = CreateWindowIcon(openButton, config.OpenButtonIcon, {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromScale(0.5, 0.5),
-            Pixels = 20,
-            Color = Theme.Text,
-            ZIndex = openButton.ZIndex + 1,
-        })
-        if not openButtonIcon then openButton.Text = openButtonText end
-    end
-    Window.OpenButton = openButton
-    Window.OpenButtonIcon = openButtonIcon
-
     NewInstance("UICorner", {
-        CornerRadius = UDim.new(0, 14),
+        CornerRadius = UDim.new(1, 0),
         Parent = openButton,
     })
 
     local openButtonStroke = NewInstance("UIStroke", {
-        Color = Theme.Border,
-        Thickness = 1,
-        Transparency = 0,
+        Color = Accent.Value,
+        Thickness = 1.5,
+        Transparency = 0.3,
         Parent = openButton,
     })
+
+    Accent.Changed:Connect(function(color)
+        openButton.TextColor3 = color
+        openButtonStroke.Color = color
+    end)
 
     openButton.MouseButton1Click:Connect(function()
         if not openButton:GetAttribute("WasDragged") then
@@ -4815,7 +3715,7 @@ local function CreateWindow(config)
             end
         end)
 
-        table.insert(windowConnections, UserInputService.InputChanged:Connect(function(input)
+        UserInputService.InputChanged:Connect(function(input)
             if activeInput == nil then
                 return
             end
@@ -4852,268 +3752,16 @@ local function CreateWindow(config)
                     end
                 end
             end
-        end))
+        end)
     end
 
-    table.insert(windowConnections, MakeDraggable(titleBar, mainWindow))
-
-    -- Resize is intentionally built in and always enabled. The top-left point
-    -- stays fixed even though MainWindow uses a centered AnchorPoint.
-    local function ResolvePixelSize(value, fallback)
-        return ResolveSizeValue(value, GetViewportSize(), fallback)
-    end
-
-    local function GetLogicalSize()
-        return ResolveSizeValue(mainWindow.Size, GetViewportSize(), initialPixelSize)
-    end
-
-    local function GetLogicalTopLeft(size)
-        size = size or GetLogicalSize()
-        local viewport = GetViewportSize()
-        local position = mainWindow.Position
-        local anchorPixel = Vector2.new(
-            position.X.Scale * viewport.X + position.X.Offset,
-            position.Y.Scale * viewport.Y + position.Y.Offset
-        )
-        return Vector2.new(
-            anchorPixel.X - mainWindow.AnchorPoint.X * size.X,
-            anchorPixel.Y - mainWindow.AnchorPoint.Y * size.Y
-        )
-    end
-
-    local function GetEffectiveBounds(topLeft)
-        local viewport = GetViewportSize()
-        local fullWidth = math.max(1, viewport.X - 16)
-        local fullHeight = math.max(1, viewport.Y - 16)
-        local availableWidth = math.min(fullWidth, math.max(1, viewport.X - topLeft.X - 8))
-        local availableHeight = math.min(fullHeight, math.max(1, viewport.Y - topLeft.Y - 8))
-        local minWidth = math.min(minimumWindowSize.X, availableWidth)
-        local minHeight = math.min(minimumWindowSize.Y, availableHeight)
-        local maxWidth = math.max(minWidth, math.min(maximumWindowSize.X, availableWidth))
-        local maxHeight = math.max(minHeight, math.min(maximumWindowSize.Y, availableHeight))
-        return Vector2.new(minWidth, minHeight), Vector2.new(maxWidth, maxHeight)
-    end
-
-    local resizeInput = nil
-    local resizeMouse = false
-    local resizeStartInput = Vector3.zero
-    local resizeStartSize = Vector2.zero
-    local resizeStartPosition = mainWindow.Position
-    local resizeStartTopLeft = Vector2.zero
-
-    local resizeHandle = NewInstance("TextButton", {
-        Name = "ResizeHandle",
-        AnchorPoint = Vector2.new(1, 1),
-        Position = UDim2.new(1, -4, 1, -4),
-        Size = UDim2.fromOffset(44, 44),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        AutoButtonColor = false,
-        Text = utf8.char(0x25E2),
-        TextColor3 = Theme.TextDim,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Active = true,
-        ZIndex = 90,
-        Parent = windowSurface,
-    })
-
-    local resizeIcon = nil
-    local resizeIconCandidates = {}
-    if config.ResizeIcon then table.insert(resizeIconCandidates, config.ResizeIcon) end
-    table.insert(resizeIconCandidates, "scaling")
-    table.insert(resizeIconCandidates, "move-diagonal-2")
-    table.insert(resizeIconCandidates, "grip")
-    for _, iconName in ipairs(resizeIconCandidates) do
-        if not resizeIcon then
-            resizeIcon = CreateWindowIcon(resizeHandle, iconName, {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.fromScale(0.5, 0.5),
-                Pixels = 14,
-                Color = Theme.TextDim,
-                Rotation = iconName == "grip" and -45 or 0,
-                ZIndex = resizeHandle.ZIndex + 1,
-            })
-        end
-    end
-    if resizeIcon then resizeHandle.Text = "" end
-
-    local ApplyResponsiveSidebar = nil
-
-    local function ApplyPixelSize(requested, preserveTopLeft)
-        local oldSize = GetLogicalSize()
-        requested = SanitizePixelSize(requested, oldSize)
-        local currentTopLeft = GetLogicalTopLeft(oldSize)
-        local topLeft = preserveTopLeft or currentTopLeft
-        local effectiveMin, effectiveMax = GetEffectiveBounds(topLeft)
-        local width = math.clamp(requested.X, effectiveMin.X, effectiveMax.X)
-        local height = math.clamp(requested.Y, effectiveMin.Y, effectiveMax.Y)
-        local delta = Vector2.new(width - oldSize.X, height - oldSize.Y)
-        local topLeftDelta = topLeft - currentTopLeft
-        local oldPosition = mainWindow.Position
-        mainWindow.Size = UDim2.fromOffset(width, height)
-        mainWindow.Position = UDim2.new(
-            oldPosition.X.Scale, oldPosition.X.Offset + topLeftDelta.X + mainWindow.AnchorPoint.X * delta.X,
-            oldPosition.Y.Scale, oldPosition.Y.Offset + topLeftDelta.Y + mainWindow.AnchorPoint.Y * delta.Y
-        )
-        windowSize = mainWindow.Size
-        if ApplyResponsiveSidebar then ApplyResponsiveSidebar(width) end
-        return Vector2.new(width, height)
-    end
-
-    table.insert(windowConnections, resizeHandle.InputBegan:Connect(function(input)
-        if not resizeHandle.Interactable then return end
-        local kind = input.UserInputType
-        if resizing or animating or kind ~= Enum.UserInputType.MouseButton1 and kind ~= Enum.UserInputType.Touch then return end
-        resizing = true
-        resizeInput = input
-        resizeMouse = kind == Enum.UserInputType.MouseButton1
-        resizeStartInput = input.Position
-        resizeStartSize = GetLogicalSize()
-        resizeStartPosition = mainWindow.Position
-        resizeStartTopLeft = GetLogicalTopLeft(resizeStartSize)
-        CloseAllOverlays()
-    end))
-
-    table.insert(windowConnections, UserInputService.InputChanged:Connect(function(input)
-        if not resizing or not resizeInput then return end
-        local matches = resizeMouse and input.UserInputType == Enum.UserInputType.MouseMovement or input == resizeInput
-        if not matches then return end
-        local delta = input.Position - resizeStartInput
-        local effectiveMin, effectiveMax = GetEffectiveBounds(resizeStartTopLeft)
-        local width = math.clamp(resizeStartSize.X + delta.X, effectiveMin.X, effectiveMax.X)
-        local height = math.clamp(resizeStartSize.Y + delta.Y, effectiveMin.Y, effectiveMax.Y)
-        local actualDelta = Vector2.new(width - resizeStartSize.X, height - resizeStartSize.Y)
-        mainWindow.Size = UDim2.fromOffset(width, height)
-        mainWindow.Position = UDim2.new(
-            resizeStartPosition.X.Scale, resizeStartPosition.X.Offset + mainWindow.AnchorPoint.X * actualDelta.X,
-            resizeStartPosition.Y.Scale, resizeStartPosition.Y.Offset + mainWindow.AnchorPoint.Y * actualDelta.Y
-        )
-        windowSize = mainWindow.Size
-        if ApplyResponsiveSidebar then ApplyResponsiveSidebar(width) end
-    end))
-
-    table.insert(windowConnections, UserInputService.InputEnded:Connect(function(input)
-        if input == resizeInput or resizeMouse and input.UserInputType == Enum.UserInputType.MouseButton1 then
-            resizing = false
-            resizeInput = nil
-            resizeMouse = false
-        end
-    end))
-
-    resizeHandle.MouseEnter:Connect(function()
-        if resizeIcon then
-            TweenService:Create(resizeIcon, TweenInfo.new(0.12), { ImageColor3 = Accent.Value }):Play()
-        else
-            TweenService:Create(resizeHandle, TweenInfo.new(0.12), { TextColor3 = Accent.Value }):Play()
-        end
-    end)
-    resizeHandle.MouseLeave:Connect(function()
-        if resizeIcon then
-            TweenService:Create(resizeIcon, TweenInfo.new(0.12), { ImageColor3 = Theme.TextDim }):Play()
-        else
-            TweenService:Create(resizeHandle, TweenInfo.new(0.12), { TextColor3 = Theme.TextDim }):Play()
-        end
-    end)
-
-    Window.ResizeHandle = resizeHandle
-    Window.ResizeIcon = resizeIcon
-    function Window:SetSize(value)
-        local requested = ResolvePixelSize(value, GetLogicalSize())
-        return ApplyPixelSize(requested)
-    end
-    function Window:GetSize()
-        return GetLogicalSize()
-    end
-    function Window:SetMinimumSize(value)
-        minimumWindowSize = ResolvePixelSize(value, minimumWindowSize)
-        maximumWindowSize = Vector2.new(
-            math.max(maximumWindowSize.X, minimumWindowSize.X),
-            math.max(maximumWindowSize.Y, minimumWindowSize.Y)
-        )
-        return ApplyPixelSize(GetLogicalSize())
-    end
-    function Window:SetMaximumSize(value)
-        local requestedMaximum = ResolvePixelSize(value, maximumWindowSize)
-        maximumWindowSize = Vector2.new(
-            math.max(requestedMaximum.X, minimumWindowSize.X),
-            math.max(requestedMaximum.Y, minimumWindowSize.Y)
-        )
-        return ApplyPixelSize(GetLogicalSize())
-    end
-
-    ApplyResponsiveSidebar = function(width)
-        if config.SidebarWidth ~= nil then return end
-        local minimum = width < 260 and 72 or 96
-        local content = width < 260 and 80 or 140
-        local desired = width < 560 and math.clamp(math.floor(width * 0.34), minimum, 150) or 180
-        desired = math.clamp(desired, minimum, math.max(minimum, width - content))
-        if math.abs(desired - sidebarWidth) < 0.5 then return end
-        sidebarWidth = desired
-        rightOutline.Position = UDim2.fromOffset(sidebarWidth, 0)
-        titleBar.Position = UDim2.fromOffset(sidebarWidth + 1, 1)
-        titleBar.Size = UDim2.new(1, -sidebarWidth - 2, 0, 48)
-        sidebar.Size = UDim2.new(0, sidebarWidth, 1, 0)
-        contentArea.Position = UDim2.fromOffset(sidebarWidth + 1, 51)
-        contentArea.Size = UDim2.new(1, -sidebarWidth - 2, 1, -52)
-        topSeparator.Position = UDim2.fromOffset(sidebarWidth, 50)
-        topSeparator.Size = UDim2.new(1, -sidebarWidth, 0, 1)
-    end
-
-    local function FitWindowToViewport()
-        if not mainWindow.Parent then return end
-        local viewport = GetViewportSize()
-        local logicalSize = GetLogicalSize()
-        local available = Vector2.new(math.max(1, viewport.X - 16), math.max(1, viewport.Y - 16))
-        local requestedSize = Vector2.new(
-            math.min(logicalSize.X, available.X),
-            math.min(logicalSize.Y, available.Y)
-        )
-        local currentTopLeft = GetLogicalTopLeft(logicalSize)
-        local requestedTopLeft = Vector2.new(
-            math.clamp(currentTopLeft.X, 8, math.max(8, viewport.X - requestedSize.X - 8)),
-            math.clamp(currentTopLeft.Y, 8, math.max(8, viewport.Y - requestedSize.Y - 8))
-        )
-        logicalSize = ApplyPixelSize(requestedSize, requestedTopLeft)
-        local topLeft = GetLogicalTopLeft(logicalSize)
-        local maxX = math.max(8, viewport.X - logicalSize.X - 8)
-        local maxY = math.max(8, viewport.Y - logicalSize.Y - 8)
-        local desiredTopLeft = Vector2.new(
-            math.clamp(topLeft.X, 8, maxX),
-            math.clamp(topLeft.Y, 8, maxY)
-        )
-        local delta = desiredTopLeft - topLeft
-        if delta.X ~= 0 or delta.Y ~= 0 then
-            local position = mainWindow.Position
-            mainWindow.Position = UDim2.new(
-                position.X.Scale, position.X.Offset + delta.X,
-                position.Y.Scale, position.Y.Offset + delta.Y
-            )
-        end
-    end
-
-    if config.Responsive ~= false then
-        local viewportConnection = nil
-        local function BindViewport()
-            if viewportConnection then viewportConnection:Disconnect() end
-            local camera = workspace.CurrentCamera
-            if camera then
-                viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-                    task.defer(FitWindowToViewport)
-                end)
-                table.insert(windowConnections, viewportConnection)
-            end
-            task.defer(FitWindowToViewport)
-        end
-        table.insert(windowConnections, workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(BindViewport))
-        BindViewport()
-    end
+    MakeDraggable(titleBar, mainWindow)
 
     local notifyHolder = NewInstance("Frame", {
         Name = "NotifyHolder",
         BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -12, 1, -12),
         Size = UDim2.fromOffset(260, 500),
         ZIndex = 300,
         Parent = ScreenGui,
@@ -5121,8 +3769,8 @@ local function CreateWindow(config)
 
     NewInstance("UIListLayout", {
         Padding = UDim.new(0, 8),
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = notifyHolder,
     })
@@ -5155,12 +3803,11 @@ local function CreateWindow(config)
             Name = "FloatingButton",
             Size = UDim2.fromOffset(size, size),
             Position = cfg.Position or UDim2.new(0.5, -size / 2, 0.6, 0),
-            BackgroundColor3 = Theme.Popup,
-            BackgroundTransparency = Theme.PopupTransparency,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             BorderSizePixel = 0,
             AutoButtonColor = false,
-            Text = cfg.Icon and "" or (cfg.Text or ""),
-            TextColor3 = Theme.TextBright,
+            Text = cfg.Text or "",
+            TextColor3 = Color3.fromRGB(235, 235, 235),
             TextScaled = true,
             TextWrapped = true,
             Font = Enum.Font.GothamBold,
@@ -5171,18 +3818,6 @@ local function CreateWindow(config)
         })
 
         NewInstance("UICorner", { CornerRadius = UDim.new(0, radius), Parent = btn })
-
-        local floatingIcon = nil
-        if cfg.Icon then
-            floatingIcon = CreateWindowIcon(btn, cfg.Icon, {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.fromScale(0.5, 0.5),
-                Pixels = math.max(16, math.min(size - 12, tonumber(cfg.IconSize) or size * 0.42)),
-                Color = Theme.TextBright,
-                ZIndex = btn.ZIndex + 1,
-            })
-            if not floatingIcon then btn.Text = cfg.Text or "" end
-        end
 
         NewInstance("UIPadding", {
             PaddingLeft = UDim.new(0, 6),
@@ -5196,8 +3831,8 @@ local function CreateWindow(config)
 
         local stroke = NewInstance("UIStroke", {
             Thickness = 1.5,
-            Color = Theme.Border,
-            Transparency = 0,
+            Color = Accent.Value,
+            Transparency = 0.35,
             ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
             Parent = btn,
         })
@@ -5206,7 +3841,6 @@ local function CreateWindow(config)
         handle.Gui = floatingGui
         handle.Button = btn
         handle.Stroke = stroke
-        handle.Icon = floatingIcon
 
         local function ClampButton()
             local cam = workspace.CurrentCamera
@@ -5246,18 +3880,16 @@ local function CreateWindow(config)
         local function applyVisual()
             if isToggle and state then
                 btn.BackgroundColor3 = Accent.Value
-                btn.TextColor3 = Theme.TextBright
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 stroke.Color = Accent.Value
                 stroke.Transparency = 0
-                if floatingIcon then floatingIcon.ImageColor3 = Theme.TextBright end
-                if isToggle and not floatingIcon then btn.Text = cfg.OnText or baseText end
+                if isToggle then btn.Text = cfg.OnText or baseText end
             else
-                btn.BackgroundColor3 = Theme.Popup
-                btn.TextColor3 = Theme.TextBright
-                stroke.Color = Theme.Border
-                stroke.Transparency = 0
-                if floatingIcon then floatingIcon.ImageColor3 = Theme.Text end
-                if isToggle and not floatingIcon then btn.Text = cfg.OffText or baseText end
+                btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+                btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+                stroke.Color = Accent.Value
+                stroke.Transparency = 0.35
+                if isToggle then btn.Text = cfg.OffText or baseText end
             end
         end
 
@@ -5382,8 +4014,7 @@ local function CreateWindow(config)
         end
 
         function handle:SetText(text)
-            baseText = text or ""
-            if not floatingIcon then btn.Text = baseText end
+            btn.Text = text or ""
         end
 
         function handle:SetActive(value, silent)
@@ -5449,10 +4080,10 @@ local function CreateWindow(config)
         cfg = cfg or {}
         local title = cfg.Title or "Notification"
         local content = cfg.Content or ""
-        local duration = math.max(0.25, tonumber(cfg.Duration) or 4)
+        local duration = cfg.Duration or 4
 
         local card = NewInstance("Frame", {
-            BackgroundColor3 = Theme.Window,
+            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -5461,23 +4092,18 @@ local function CreateWindow(config)
             Parent = notifyHolder,
         })
 
-        NewInstance("UICorner", {
-            CornerRadius = UDim.new(0, Theme.PopupRounding),
-            Parent = card,
-        })
-
         local cardStroke = NewInstance("UIStroke", {
-            Color = Theme.Border,
+            Color = Accent.Value,
             Thickness = 1,
             Transparency = 1,
             Parent = card,
         })
 
         NewInstance("UIPadding", {
-            PaddingTop = UDim.new(0, 15),
-            PaddingBottom = UDim.new(0, 15),
-            PaddingLeft = UDim.new(0, 15),
-            PaddingRight = UDim.new(0, 15),
+            PaddingTop = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
             Parent = card,
         })
 
@@ -5493,7 +4119,7 @@ local function CreateWindow(config)
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Theme.TextBright,
+            TextColor3 = Accent.Value,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = title,
@@ -5502,30 +4128,13 @@ local function CreateWindow(config)
             Parent = card,
         })
 
-        local notificationIcon = nil
-        if cfg.Icon then
-            notificationIcon = CreateWindowIcon(titleLabel, cfg.Icon, {
-                Pixels = 16,
-                Position = UDim2.new(0, -24, 0.5, 0),
-                Color = cfg.IconColor or Accent.Value,
-                Transparency = 1,
-                ZIndex = titleLabel.ZIndex + 1,
-            })
-            if notificationIcon then
-                NewInstance("UIPadding", {
-                    PaddingLeft = UDim.new(0, 24),
-                    Parent = titleLabel,
-                })
-            end
-        end
-
         local bodyLabel = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Theme.Text,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = content,
@@ -5534,22 +4143,15 @@ local function CreateWindow(config)
             Parent = card,
         })
 
-        TweenService:Create(card, TweenInfo.new(0.2), { BackgroundTransparency = Theme.WindowTransparency }):Play()
-        TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 0 }):Play()
+        TweenService:Create(card, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
+        TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 0.2 }):Play()
         TweenService:Create(titleLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
         TweenService:Create(bodyLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
-        if notificationIcon then
-            TweenService:Create(notificationIcon, TweenInfo.new(0.2), { ImageTransparency = 0 }):Play()
-        end
 
         task.delay(duration, function()
-            if not card.Parent then return end
             TweenService:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
             TweenService:Create(cardStroke, TweenInfo.new(0.25), { Transparency = 1 }):Play()
             TweenService:Create(titleLabel, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
-            if notificationIcon then
-                TweenService:Create(notificationIcon, TweenInfo.new(0.25), { ImageTransparency = 1 }):Play()
-            end
             local fade = TweenService:Create(bodyLabel, TweenInfo.new(0.25), { TextTransparency = 1 })
             fade:Play()
             fade.Completed:Connect(function()
@@ -5561,17 +4163,6 @@ local function CreateWindow(config)
     end
 
     function Window:Destroy()
-        menuTransition = menuTransition + 1
-        tabTransition = tabTransition + 1
-        resizing = false
-        if menuFadeTween then menuFadeTween:Cancel() end
-        if menuScaleTween then menuScaleTween:Cancel() end
-        for _, tween in ipairs(tabContentTweens) do tween:Cancel() end
-        table.clear(tabContentTweens)
-        for _, connection in ipairs(windowConnections) do
-            pcall(function() connection:Disconnect() end)
-        end
-        table.clear(windowConnections)
         for _, gui in ipairs(floatingGuis) do
             pcall(function()
                 gui:Destroy()
@@ -5588,26 +4179,6 @@ local function CreateWindow(config)
 end
 
 local Lurk = {}
-
-function Lurk:LoadIcons(source)
-    return LoadIconAtlas(source or DEFAULT_ICON_URL)
-end
-
-function Lurk:GetIcon(name, source, sheetName)
-    if source == "48px" or source == "256px" or source == 256 then
-        sheetName, source = source, nil
-    end
-    local atlas = LoadIconAtlas(source or DEFAULT_ICON_URL)
-    local descriptor = ResolveIcon(atlas, name, sheetName or "48px")
-    if not descriptor then return nil, nil, nil end
-    return descriptor.Image, descriptor.Offset, descriptor.Size
-end
-
-function Lurk:CreateIcon(parent, name, config)
-    config = config or {}
-    local atlas = LoadIconAtlas(config.Icons or config.IconURL or DEFAULT_ICON_URL)
-    return CreateAtlasIcon(atlas, parent, name, config)
-end
 
 function Lurk:CreateWindow(config)
     return CreateWindow(config)
