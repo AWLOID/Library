@@ -14,7 +14,7 @@ local Workspace = game:GetService("Workspace")
 
 local Library = {}
 Library.__index = Library
-Library.Version = "2.0.0"
+Library.Version = "2.1.0"
 
 local Page = {}
 Page.__index = Page
@@ -22,8 +22,9 @@ Page.__index = Page
 local Section = {}
 Section.__index = Section
 
--- RGBA values are copied from themes/themes.cpp. Roblox stores alpha as
--- transparency, so the conversion is transparency = 1 - alpha / 255.
+-- The default is Alice/Everness' own "Solid" theme.  It keeps the exact
+-- source palette without depending on the native blur pass that Roblox does
+-- not have. Roblox stores alpha as transparency (1 - alpha).
 local DEFAULT_THEME = {
 	Accent = Color3.fromRGB(120, 255, 100),
 	Text = Color3.fromRGB(255, 255, 255),
@@ -34,12 +35,12 @@ local DEFAULT_THEME = {
 	Category = Color3.fromRGB(255, 255, 255),
 	CategoryAlpha = .5,
 
-	Border = Color3.fromRGB(24, 24, 24),
-	BorderAlpha = 200 / 255,
+	Border = Color3.fromRGB(25, 25, 25),
+	BorderAlpha = 1,
 	Window = Color3.fromRGB(12, 12, 12),
-	WindowAlpha = 240 / 255,
+	WindowAlpha = 1,
 	SettingsOverlay = Color3.fromRGB(8, 8, 8),
-	SettingsOverlayAlpha = 220 / 255,
+	SettingsOverlayAlpha = 1,
 
 	Tab = Color3.fromRGB(255, 255, 255),
 	TabAlpha = 0,
@@ -47,13 +48,14 @@ local DEFAULT_THEME = {
 	TabActiveAlpha = 8 / 255,
 	TabClickedAlpha = 16 / 255,
 
-	Element = Color3.fromRGB(40, 40, 40),
-	ElementAlpha = 40 / 255,
-	ElementHoverAlpha = 80 / 255,
-	ElementClicked = Color3.fromRGB(42, 42, 42),
-	ElementClickedAlpha = 100 / 255,
-	ElementOutline = Color3.fromRGB(42, 42, 42),
-	ElementOutlineAlpha = 50 / 255,
+	Element = Color3.fromRGB(14, 14, 14),
+	ElementHover = Color3.fromRGB(16, 16, 16),
+	ElementAlpha = 1,
+	ElementHoverAlpha = 1,
+	ElementClicked = Color3.fromRGB(18, 18, 18),
+	ElementClickedAlpha = 1,
+	ElementOutline = Color3.fromRGB(20, 20, 20),
+	ElementOutlineAlpha = 1,
 	ElementOverlay = Color3.fromRGB(255, 255, 255),
 	ElementOverlayAlpha = 5 / 255,
 	ElementOverlayHoverAlpha = 10 / 255,
@@ -61,8 +63,8 @@ local DEFAULT_THEME = {
 	OverlayText = Color3.fromRGB(255, 255, 255),
 	OverlayTextAlpha = 96 / 255,
 
-	Popup = Color3.fromRGB(20, 20, 20),
-	PopupAlpha = 140 / 255,
+	Popup = Color3.fromRGB(14, 14, 14),
+	PopupAlpha = 1,
 	PopupText = Color3.fromRGB(255, 255, 255),
 	PopupTextAlpha = 185 / 255,
 	PopupOutline = Color3.fromRGB(255, 255, 255),
@@ -560,7 +562,9 @@ local function makeDraggable(handle, target, connections, library)
 			dragging = false
 			capturedInput = nil
 			mouseCapture = false
-			if library then task.defer(function() library:_clampToViewport() end) end
+			if library and library._clampWindow then
+				task.defer(function() library:_clampToViewport() end)
+			end
 		end
 	end)
 	table.insert(connections, began)
@@ -627,11 +631,12 @@ function Library.new(config)
 	self._responsive = type(config.Responsive) == "table" and config.Responsive or {}
 	self._responsiveEnabled = config.Responsive ~= false and self._responsive.Enabled ~= false
 	self._layoutMode = self._responsive.Mode or "auto"
-	self._requestedSize = normalizeVector2(config.Size, Vector2.new(640, 430), getViewportSize())
+	self._requestedSize = normalizeVector2(config.Size, Vector2.new(680, 460), getViewportSize())
 	self._positionWasConfigured = config.Position ~= nil
 	self._minimumSize = normalizeVector2(config.MinSize or self._responsive.MinSize, Vector2.new(360, 320), getViewportSize())
 	self._maximumSize = normalizeVector2(config.MaxSize or self._responsive.MaxSize, Vector2.new(1100, 760), getViewportSize())
 	self._desktopSidebarWidth = tonumber(config.SidebarWidth) or 180
+	self._clampWindow = config.ClampToViewport == true or self._responsive.ClampToViewport == true
 	self._compactSidebarWidth = tonumber(self._responsive.CompactSidebarWidth) or 58
 	if type(config.MobileToggle) == "table" then
 		self._mobileLauncherEnabled = config.MobileToggle.Enabled ~= false
@@ -706,7 +711,7 @@ function Library.new(config)
 
 	local logoArea = create("Frame", {
 		Name = "LogoArea",
-		Size = UDim2.fromOffset(self._desktopSidebarWidth, 50),
+		Size = UDim2.fromOffset(self._desktopSidebarWidth, 80),
 		BackgroundTransparency = 1,
 		Active = true,
 		ZIndex = 2,
@@ -719,8 +724,8 @@ function Library.new(config)
 		logo = create("ImageLabel", {
 			Name = "Logo",
 			AnchorPoint = Vector2.new(.5, .5),
-			Position = UDim2.fromScale(.5, .5),
-			Size = UDim2.fromOffset(28, 28),
+			Position = UDim2.new(.5, 0, .5, 10),
+			Size = UDim2.fromOffset(80, 80),
 			BackgroundTransparency = 1,
 			Image = config.LogoImage,
 			ImageColor3 = config.LogoColor or self.Theme.Text,
@@ -744,8 +749,8 @@ function Library.new(config)
 
 	local navigation = create("ScrollingFrame", {
 		Name = "Tabs",
-		Position = UDim2.fromOffset(0, 50),
-		Size = UDim2.new(1, 0, 1, -50),
+		Position = UDim2.fromOffset(0, 80),
+		Size = UDim2.new(1, 0, 1, -80),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
@@ -894,9 +899,9 @@ end
 function Library:_createNotificationHost()
 	local host = create("Frame", {
 		Name = "Notifications",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -14, 1, -14),
-		Size = UDim2.fromOffset(320, 0),
+		AnchorPoint = Vector2.new(.5, .5),
+		Position = UDim2.fromScale(.5, .5),
+		Size = UDim2.fromOffset(260, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		ZIndex = 200,
@@ -905,8 +910,8 @@ function Library:_createNotificationHost()
 	local layout = create("UIListLayout", {
 		Padding = UDim.new(0, tonumber(self._notificationOptions.Gap) or 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Right,
-		VerticalAlignment = Enum.VerticalAlignment.Bottom,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
 		Parent = host,
 	})
 	self.NotificationHost = host
@@ -1088,10 +1093,10 @@ function Library:_applyResponsive(initial)
 	end
 
 	self.Sidebar.Size = UDim2.new(0, sidebarWidth, 1, 0)
-	self.LogoArea.Size = UDim2.fromOffset(sidebarWidth, 50)
+	self.LogoArea.Size = UDim2.fromOffset(sidebarWidth, 80)
 	self.LogoArea.Visible = not compact
-	self.Navigation.Position = UDim2.fromOffset(0, compact and 10 or 50)
-	self.Navigation.Size = UDim2.new(1, 0, 1, compact and -20 or -50)
+	self.Navigation.Position = UDim2.fromOffset(0, compact and 10 or 80)
+	self.Navigation.Size = UDim2.new(1, 0, 1, compact and -20 or -80)
 	self.RightOutline.Position = UDim2.fromOffset(sidebarWidth, 0)
 	self.RightOutline.Size = UDim2.new(1, -sidebarWidth, 1, 0)
 	self.TopArea.Position = UDim2.fromOffset(sidebarWidth + 1, 1)
@@ -1103,6 +1108,11 @@ function Library:_applyResponsive(initial)
 	if self.SettingsOverlay then
 		self.SettingsOverlay.Position = UDim2.fromOffset(sidebarWidth, 0)
 		self.SettingsOverlay.Size = UDim2.new(1, -sidebarWidth, 1, 0)
+	end
+	if self.SettingsPanel then
+		local settingsInset = compact and 0 or math.min(180, math.max(0, actual.X - sidebarWidth - 280))
+		self.SettingsPanel.Position = UDim2.fromOffset(settingsInset, 0)
+		self.SettingsPanel.Size = UDim2.new(1, -settingsInset, 1, 0)
 	end
 
 	for _, category in ipairs(self.Categories or {}) do
@@ -1132,7 +1142,7 @@ function Library:_applyResponsive(initial)
 		end
 	end
 	if self._settingsRows then
-		local rowHeight = touchMode and 44 or 40
+		local rowHeight = touchMode and 44 or 34
 		for index, row in ipairs(self._settingsRows) do
 			row.Position = UDim2.fromOffset(0, (index - 1) * rowHeight)
 			row.Size = UDim2.new(1, 0, 0, rowHeight)
@@ -1151,26 +1161,19 @@ function Library:_applyResponsive(initial)
 		setIconColor(self.MobileLauncherIcon, self.Theme.Text, 0)
 	end
 	if self.NotificationHost then
-		local width = math.min(tonumber(self._notificationOptions.Width) or 320, viewport.X - margin * 2)
+		local width = math.min(tonumber(self._notificationOptions.Width) or 260, viewport.X - margin * 2)
 		self.NotificationHost.Size = UDim2.fromOffset(math.max(160, width), 0)
-		if mobile or touchMode then
-			self.NotificationHost.AnchorPoint = Vector2.new(.5, 0)
-			self.NotificationHost.Position = UDim2.new(.5, 0, 0, safeTopLeft.Y + margin)
-			self.NotificationLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-			self.NotificationLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-		else
-			self.NotificationHost.AnchorPoint = Vector2.new(1, 1)
-			self.NotificationHost.Position = UDim2.new(1, -(safeBottomRight.X + margin), 1, -(safeBottomRight.Y + margin))
-			self.NotificationLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-			self.NotificationLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-		end
+		self.NotificationHost.AnchorPoint = Vector2.new(.5, .5)
+		self.NotificationHost.Position = UDim2.fromScale(.5, .5)
+		self.NotificationLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		self.NotificationLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	end
 
 	if layoutChanged and self._selectedTab then self:_rebuildTopbar(self._selectedTab) end
 	if layoutChanged then self:ClosePopup() end
 	if self.NotificationHost then self:_syncNotifications() end
-	if (initial and not self._positionWasConfigured) or (not initial and mobile and layoutChanged) then self:Center() end
-	task.defer(function() self:_clampToViewport() end)
+	if initial and not self._positionWasConfigured then self:Center() end
+	if self._clampWindow then task.defer(function() self:_clampToViewport() end) end
 end
 
 function Library:SetSize(value)
@@ -1195,6 +1198,16 @@ function Library:SetScale(value)
 	self.Scale.Scale = math.clamp(tonumber(value) or 1, .65, 1.5)
 	self:_applyResponsive()
 	return self
+end
+
+function Library:SetClampToViewport(enabled)
+	self._clampWindow = enabled == true
+	if self._clampWindow then self:_clampToViewport() end
+	return self
+end
+
+function Library:GetClampToViewport()
+	return self._clampWindow
 end
 
 function Library:SetLayoutMode(mode)
@@ -1351,6 +1364,7 @@ function Library:GetConfigData(options)
 			size = encodeConfigValue(self._requestedSize),
 			scale = self.Scale.Scale,
 			layout = self._layoutMode,
+			clampToViewport = self._clampWindow,
 		}
 	end
 	return data
@@ -1434,13 +1448,17 @@ function Library:ApplyConfig(data, options)
 			if layout ~= "auto" and layout ~= "desktop" and layout ~= "compact" and layout ~= "mobile" then return false, "Invalid UI layout" end
 			stagedUI.Layout = layout
 		end
+		if decoded.ui.clampToViewport ~= nil then
+			if type(decoded.ui.clampToViewport) ~= "boolean" then return false, "Invalid viewport clamp setting" end
+			stagedUI.ClampToViewport = decoded.ui.clampToViewport
+		end
 	end
 
 	local changes = {}
 	local seenFlags = {}
 	local previousPending = self._pendingFlags
 	local previousPendingSilent = self._pendingFlagSilent
-	local previousUI = {Accent = self.Theme.Accent, Size = self._requestedSize, Scale = self.Scale.Scale, Layout = self._layoutMode}
+	local previousUI = {Accent = self.Theme.Accent, Size = self._requestedSize, Scale = self.Scale.Scale, Layout = self._layoutMode, ClampToViewport = self._clampWindow}
 	local stagedPending = options.MergePending and table.clone(self._pendingFlags) or {}
 	local stagedPendingSilent = options.MergePending and table.clone(self._pendingFlagSilent) or {}
 	for flag, encoded in pairs(sourceFlags) do
@@ -1496,6 +1514,7 @@ function Library:ApplyConfig(data, options)
 			if stagedUI.Size then self:SetSize(stagedUI.Size) end
 			if stagedUI.Scale then self:SetScale(stagedUI.Scale) end
 			if stagedUI.Layout then self:SetLayoutMode(stagedUI.Layout) end
+			if stagedUI.ClampToViewport ~= nil then self:SetClampToViewport(stagedUI.ClampToViewport) end
 		end)
 		if not uiOk then
 			for index = #applied, 1, -1 do
@@ -1512,6 +1531,7 @@ function Library:ApplyConfig(data, options)
 				self:SetSize(previousUI.Size)
 				self:SetScale(previousUI.Scale)
 				self:SetLayoutMode(previousUI.Layout)
+				self:SetClampToViewport(previousUI.ClampToViewport)
 			end)
 			return false, "UI state was rejected: " .. tostring(uiError)
 		end
@@ -1721,12 +1741,15 @@ function Library:_buildSettings()
 
 	local panel = create("Frame", {
 		Name = "Settings",
-		Position = UDim2.fromOffset(0, 0),
-		Size = UDim2.fromScale(1, 1),
+		-- Source: settings content starts at global x=360 while the dim layer
+		-- starts at x=180. Relative to this overlay that is another 180 px.
+		Position = UDim2.fromOffset(180, 0),
+		Size = UDim2.new(1, -180, 1, 0),
 		BackgroundTransparency = 1,
 		ZIndex = 61,
 		Parent = overlay,
 	})
+	self.SettingsPanel = panel
 
 	local back = makeButton(panel, {
 		Name = "Back",
@@ -1763,7 +1786,7 @@ function Library:_buildSettings()
 		Parent = panel,
 	})
 
-	makeText(area, "INTERFACE", 10, theme.OverlayText, {
+	makeText(area, "UI", 10, theme.OverlayText, {
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -24, 0, 18),
 		Font = Enum.Font.GothamBold,
@@ -1774,7 +1797,7 @@ function Library:_buildSettings()
 	local group = create("Frame", {
 		Name = "UIGroup",
 		Position = UDim2.fromOffset(0, 22),
-		Size = UDim2.new(1, 0, 0, 240),
+		Size = UDim2.new(1, 0, 0, 170),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		ZIndex = 63,
@@ -1782,13 +1805,13 @@ function Library:_buildSettings()
 	})
 	addCorner(group, 12)
 
-	local rowCount = 6
+	local rowCount = 5
 	self._settingsRows = {}
 	local function settingsRow(index, title, iconName)
 		local row = create("Frame", {
 			Name = title,
-			Position = UDim2.fromOffset(0, (index - 1) * 40),
-			Size = UDim2.new(1, 0, 0, 40),
+			Position = UDim2.fromOffset(0, (index - 1) * 34),
+			Size = UDim2.new(1, 0, 0, 34),
 			BackgroundColor3 = theme.Element,
 			BackgroundTransparency = tr(theme.ElementAlpha),
 			BorderSizePixel = 0,
@@ -1863,7 +1886,22 @@ function Library:_buildSettings()
 		render()
 	end
 
-	local accentRow = settingsRow(1, "Accent color", "palette")
+	local themeRow = settingsRow(1, "Theme", "paintbrush")
+	makeText(themeRow, "Solid", 12, theme.TextDim, {
+		Position = UDim2.new(1, -94, 0, 0), Size = UDim2.fromOffset(60, 34),
+		TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 66,
+	})
+	makeIcon(self, themeRow, "chevron-right", 15, theme.TextDim, {
+		AnchorPoint = Vector2.new(.5, .5), Position = UDim2.new(1, -19, .5, 0),
+		Size = UDim2.fromOffset(15, 15), ZIndex = 66,
+	})
+
+	local clampRow = settingsRow(2, "Clamp window", "move")
+	settingsToggle(clampRow, function() return self._clampWindow end, function(value)
+		self:SetClampToViewport(value)
+	end)
+
+	local accentRow = settingsRow(3, "Accent color", "palette")
 	local accentSwatch = create("Frame", {
 		Position = UDim2.new(1, -34, .5, -10),
 		Size = UDim2.fromOffset(20, 20),
@@ -1882,9 +1920,9 @@ function Library:_buildSettings()
 		})
 	end)
 
-	local scaleRow = settingsRow(2, "Interface scale", "monitor")
+	local scaleRow = settingsRow(4, "Interface scale", "monitor")
 	local scaleValue = makeText(scaleRow, string.format("%d%%", math.floor(self.Scale.Scale * 100 + .5)), 12, theme.TextDim, {
-		Position = UDim2.new(1, -72, 0, 0), Size = UDim2.fromOffset(58, 40), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 66,
+		Position = UDim2.new(1, -72, 0, 0), Size = UDim2.fromOffset(58, 34), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 66,
 	})
 	local scales = {.85, 1, 1.15}
 	makeButton(scaleRow, {Size = UDim2.fromScale(1, 1), ZIndex = 67}).Activated:Connect(function()
@@ -1897,29 +1935,12 @@ function Library:_buildSettings()
 		scaleValue.Text = string.format("%d%%", math.floor(nextScale * 100 + .5))
 	end)
 
-	local launcherRow = settingsRow(3, "Mobile launcher", "smartphone")
+	local launcherRow = settingsRow(5, "Mobile launcher", "smartphone")
 	settingsToggle(launcherRow, function() return self._mobileLauncherEnabled end, function(value)
 		self._mobileLauncherEnabled = value
 		self:_applyResponsive()
 	end)
 
-	local centerRow = settingsRow(4, "Center window", "move")
-	makeIcon(self, centerRow, "chevron-right", 16, theme.TextDim, {
-		AnchorPoint = Vector2.new(.5,.5), Position = UDim2.new(1,-22,.5,0), Size = UDim2.fromOffset(16,16), ZIndex = 66,
-	})
-	makeButton(centerRow, {Size = UDim2.fromScale(1, 1), ZIndex = 67}).Activated:Connect(function() self:Center() end)
-
-	local saveRow = settingsRow(5, "Save default config", "save")
-	makeButton(saveRow, {Size = UDim2.fromScale(1, 1), ZIndex = 67}).Activated:Connect(function()
-		local result, err = self:SaveConfig(self._defaultConfigName)
-		self:Notify({Id = "config-save", Type = result and "success" or "error", Title = result and "Config saved" or "Save failed", Text = result and self._defaultConfigName or tostring(err), Duration = 3})
-	end)
-
-	local loadRow = settingsRow(6, "Load default config", "folder-open")
-	makeButton(loadRow, {Size = UDim2.fromScale(1, 1), ZIndex = 67}).Activated:Connect(function()
-		local result, err = self:LoadConfig(self._defaultConfigName)
-		self:Notify({Id = "config-load", Type = result and "success" or "error", Title = result and "Config loaded" or "Load failed", Text = result and self._defaultConfigName or tostring(err), Duration = 3})
-	end)
 end
 
 function Library:_setSettingsVisible(visible)
@@ -2443,7 +2464,7 @@ function Section:_row(label, height)
 	self:_refreshRows()
 
 	connectHover(hit, function()
-		play(row, .10, {BackgroundColor3 = theme.Element, BackgroundTransparency = tr(theme.ElementHoverAlpha)})
+		play(row, .10, {BackgroundColor3 = theme.ElementHover or theme.Element, BackgroundTransparency = tr(theme.ElementHoverAlpha)})
 	end, function()
 		play(row, .10, {BackgroundColor3 = theme.Element, BackgroundTransparency = tr(theme.ElementAlpha)})
 	end)
@@ -2452,7 +2473,7 @@ function Section:_row(label, height)
 		row.BackgroundTransparency = tr(theme.ElementClickedAlpha)
 	end)
 	hit.MouseButton1Up:Connect(function()
-		play(row, .10, {BackgroundColor3 = theme.Element, BackgroundTransparency = tr(theme.ElementHoverAlpha)})
+		play(row, .10, {BackgroundColor3 = theme.ElementHover or theme.Element, BackgroundTransparency = tr(theme.ElementHoverAlpha)})
 	end)
 	return entry
 end
@@ -2950,7 +2971,7 @@ function Section:AddSlider(config)
 	return self.Library:_registerFlag(config, handle, "slider")
 end
 
-function Library:_openColorPopup(anchor, initialColor, callback, options)
+function Library:_openAdvancedColorPopup(anchor, initialColor, callback, options)
 	options = options or {}
 	if typeof(initialColor) ~= "Color3" then initialColor = Color3.new(1, 1, 1) end
 	local originalColor = initialColor
@@ -3188,6 +3209,175 @@ function Library:_openColorPopup(anchor, initialColor, callback, options)
 	return popup
 end
 
+-- Compact Alice/Everness picker. Its geometry follows elem.cpp:
+-- CPopup(180), 10 px padding and position {swatch.right + 5, swatch.top - 100}.
+function Library:_openColorPopup(anchor, initialColor, callback, options)
+	options = options or {}
+	if string.lower(tostring(options.Style or "source")) == "advanced" then
+		return self:_openAdvancedColorPopup(anchor, initialColor, callback, options)
+	end
+	if typeof(initialColor) ~= "Color3" then initialColor = Color3.new(1, 1, 1) end
+	local showAlpha = options.ShowAlpha ~= false
+	local alpha = showAlpha and math.clamp(tonumber(options.Alpha) or 1, 0, 1) or 1
+	local hue, saturation, brightness = initialColor:ToHSV()
+	local width = 180
+	local rowHeight = self._touchMode and 38 or 30
+	local controls = showAlpha and 5 or 4
+	local contentHeight = 194 + rowHeight * controls
+	local logicalSize = self:GetActualSize()
+	local height = math.min(contentHeight, math.max(180, logicalSize.Y - 16))
+	local scale = math.max(self.Scale.Scale, .01)
+	local windowPosition = self.Window.AbsolutePosition
+	local x = (anchor.AbsolutePosition.X + anchor.AbsoluteSize.X - windowPosition.X) / scale + 5
+	local y = (anchor.AbsolutePosition.Y - windowPosition.Y) / scale - 100
+	if self._mobile or x + width > logicalSize.X - 8 then
+		x = (anchor.AbsolutePosition.X - windowPosition.X) / scale - width - 5
+	end
+	if self._mobile then
+		x = math.clamp(x, 8, math.max(8, logicalSize.X - width - 8))
+		y = math.clamp(y, 8, math.max(8, logicalSize.Y - height - 8))
+	end
+	local popup = self:_popupFrame(width, height, UDim2.fromOffset(x, y))
+	local content = create("ScrollingFrame", {
+		Name = "ColorPicker", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
+		CanvasSize = UDim2.fromOffset(0, contentHeight), ScrollBarThickness = height < contentHeight and 2 or 0,
+		ScrollBarImageColor3 = self.Theme.TextDim, ScrollBarImageTransparency = .45,
+		ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = 102, Parent = popup,
+	})
+
+	local sv = create("Frame", {
+		Name = "SaturationValue", Position = UDim2.fromOffset(10, 10), Size = UDim2.fromOffset(160, 116),
+		BackgroundColor3 = Color3.fromHSV(hue, 1, 1), Active = true, ClipsDescendants = true, ZIndex = 103, Parent = content,
+	})
+	addCorner(sv, 7)
+	local white = create("Frame", {Size=UDim2.fromScale(1,1),BackgroundColor3=Color3.new(1,1,1),ZIndex=104,Parent=sv})
+	create("UIGradient", {Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(1,1)}),Parent=white})
+	local black = create("Frame", {Size=UDim2.fromScale(1,1),BackgroundColor3=Color3.new(0,0,0),ZIndex=105,Parent=sv})
+	create("UIGradient", {Rotation=90,Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}),Parent=black})
+	local svCursor = create("Frame", {AnchorPoint=Vector2.new(.5,.5),Size=UDim2.fromOffset(11,11),BackgroundTransparency=1,ZIndex=108,Parent=sv})
+	addCorner(svCursor, 99); addStroke(svCursor, Color3.new(1,1,1), 1, 2)
+
+	local hueBar = create("Frame", {
+		Name="Hue",Position=UDim2.fromOffset(10,136),Size=UDim2.fromOffset(160,8),BackgroundColor3=Color3.new(1,1,1),
+		Active=true,ClipsDescendants=false,ZIndex=103,Parent=content,
+	})
+	addCorner(hueBar, 99)
+	create("UIGradient", {Color=ColorSequence.new({
+		ColorSequenceKeypoint.new(0,Color3.fromHSV(0,1,1)), ColorSequenceKeypoint.new(1/6,Color3.fromHSV(1/6,1,1)),
+		ColorSequenceKeypoint.new(2/6,Color3.fromHSV(2/6,1,1)), ColorSequenceKeypoint.new(3/6,Color3.fromHSV(3/6,1,1)),
+		ColorSequenceKeypoint.new(4/6,Color3.fromHSV(4/6,1,1)), ColorSequenceKeypoint.new(5/6,Color3.fromHSV(5/6,1,1)),
+		ColorSequenceKeypoint.new(1,Color3.fromHSV(1,1,1)),
+	}),Parent=hueBar})
+	local hueCursor = create("Frame", {AnchorPoint=Vector2.new(.5,.5),Size=UDim2.fromOffset(5,14),BackgroundColor3=Color3.new(1,1,1),ZIndex=108,Parent=hueBar})
+	addCorner(hueCursor,99); addStroke(hueCursor,Color3.new(0,0,0),.35,1)
+
+	self._colorPalette = self._colorPalette or {}
+	local paletteHolder = create("Frame", {Position=UDim2.fromOffset(10,154),Size=UDim2.fromOffset(160,24),BackgroundTransparency=1,ZIndex=103,Parent=content})
+	local paletteButtons = {}
+	local function currentColor() return Color3.fromHSV(hue, saturation, brightness) end
+	local updateVisuals
+	local function emit()
+		local color = currentColor()
+		if options.Preview then task.defer(options.Preview, color, alpha) end
+		callback(color, alpha, initialColor, tonumber(options.Alpha) or 1)
+	end
+	local function setColor(color, newAlpha)
+		if typeof(color) ~= "Color3" then return end
+		hue, saturation, brightness = color:ToHSV()
+		if newAlpha ~= nil and showAlpha then alpha = math.clamp(newAlpha,0,1) end
+		updateVisuals()
+		emit()
+	end
+	local function rebuildPalette()
+		for _, object in ipairs(paletteButtons) do object:Destroy() end
+		table.clear(paletteButtons)
+		for index, color in ipairs(self._colorPalette) do
+			if index > 6 then break end
+			local hit = makeButton(paletteHolder,{Position=UDim2.fromOffset((index-1)*23,0),Size=UDim2.fromOffset(18,18),ZIndex=105})
+			local ring=create("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(18,18),BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,ZIndex=104,Parent=hit})
+			addCorner(ring,99); addStroke(ring,Color3.new(1,1,1),.65,1)
+			local dot=create("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(12,12),BackgroundColor3=color,ZIndex=105,Parent=hit})
+			addCorner(dot,99)
+			hit.Activated:Connect(function() setColor(color) end)
+			table.insert(paletteButtons,hit)
+		end
+	end
+	local addColor = makeButton(paletteHolder,{AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,0,0,0),Size=UDim2.fromOffset(18,18),BackgroundColor3=self.Theme.ElementOverlay,BackgroundTransparency=tr(self.Theme.ElementOverlayAlpha),ZIndex=105})
+	addCorner(addColor,4)
+	makeIcon(self,addColor,"plus",12,self.Theme.PopupText,{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(12,12),ZIndex=106})
+	addColor.Activated:Connect(function()
+		if #self._colorPalette >= 6 then table.remove(self._colorPalette,1) end
+		table.insert(self._colorPalette,currentColor()); rebuildPalette()
+	end)
+
+	create("Frame", {Position=UDim2.fromOffset(10,184),Size=UDim2.fromOffset(160,1),BackgroundColor3=self.Theme.PopupOutline,BackgroundTransparency=tr(self.Theme.PopupOutlineAlpha),BorderSizePixel=0,ZIndex=103,Parent=content})
+	local yCursor = 194
+	local function actionRow(name, iconName, action)
+		local button=makeButton(content,{Position=UDim2.fromOffset(8,yCursor),Size=UDim2.new(1,-16,0,rowHeight),BackgroundColor3=self.Theme.PopupOverlay,BackgroundTransparency=1,ZIndex=104})
+		addCorner(button,12)
+		local icon=makeIcon(self,button,iconName,14,self.Theme.PopupText,{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromOffset(17,rowHeight/2),Size=UDim2.fromOffset(14,14),ZIndex=105})
+		makeText(button,name,12,self.Theme.PopupText,{Position=UDim2.fromOffset(34,0),Size=UDim2.new(1,-42,1,0),TextTransparency=tr(self.Theme.PopupTextAlpha),ZIndex=105})
+		connectHover(button,function() play(button,.08,{BackgroundTransparency=tr(self.Theme.PopupOverlayHoverAlpha)}) end,function() play(button,.08,{BackgroundTransparency=1}) end)
+		button.Activated:Connect(action)
+		yCursor += rowHeight
+		return button,icon
+	end
+	local function sliderRow(name,iconName,getValue,setValue)
+		local row=actionRow(name,iconName,function() end)
+		local track=create("Frame",{AnchorPoint=Vector2.new(1,.5),Position=UDim2.new(1,-9,.5,0),Size=UDim2.fromOffset(76,6),BackgroundColor3=self.Theme.SliderBackground,BackgroundTransparency=tr(self.Theme.SliderBackgroundAlpha),Active=true,ZIndex=107,Parent=row})
+		addCorner(track,99)
+		local fill=create("Frame",{Size=UDim2.fromScale(getValue(),1),BackgroundColor3=self.Theme.Accent,ZIndex=108,Parent=track});addCorner(fill,99)
+		local cursor=create("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(getValue(),.5),Size=UDim2.fromOffset(10,10),BackgroundColor3=Color3.new(1,1,1),ZIndex=109,Parent=track});addCorner(cursor,99)
+		local function renderSlider() local value=math.clamp(getValue(),0,1);fill.Size=UDim2.fromScale(value,1);cursor.Position=UDim2.fromScale(value,.5) end
+		return track,renderSlider,function(position) setValue(math.clamp((position.X-track.AbsolutePosition.X)/math.max(1,track.AbsoluteSize.X),0,1));renderSlider();updateVisuals();emit() end
+	end
+	local hdrTrack,hdrRender,setHDR=sliderRow("HDR","sun",function() return brightness end,function(v) brightness=math.max(.1,v) end)
+	local alphaTrack,alphaRender,setAlpha
+	if showAlpha then alphaTrack,alphaRender,setAlpha=sliderRow("Alpha","paint-roller",function() return alpha end,function(v) alpha=v end) end
+	actionRow("Copy","copy",function() self._colorClipboard={Color=currentColor(),Alpha=alpha} end)
+	actionRow("Paste","clipboard",function() if self._colorClipboard then setColor(self._colorClipboard.Color,self._colorClipboard.Alpha) end end)
+	actionRow("Pick","pipette",function()
+		if type(options.Eyedropper)=="function" then
+			local ok,color,newAlpha=pcall(options.Eyedropper)
+			if ok and typeof(color)=="Color3" then setColor(color,newAlpha) end
+		end
+	end)
+
+	updateVisuals=function()
+		sv.BackgroundColor3=Color3.fromHSV(hue,1,1)
+		svCursor.Position=UDim2.fromScale(saturation,1-brightness)
+		hueCursor.Position=UDim2.fromScale(hue,.5)
+		hdrRender()
+		if alphaRender then alphaRender() end
+	end
+	local activeInput,activeSetter,mouseCapture
+	local function capture(input,setter)
+		local kind=input.UserInputType
+		if activeInput or kind~=Enum.UserInputType.MouseButton1 and kind~=Enum.UserInputType.Touch then return end
+		activeInput=input;activeSetter=setter;mouseCapture=kind==Enum.UserInputType.MouseButton1;content.ScrollingEnabled=false;setter(input.Position)
+	end
+	local function setSV(position)
+		saturation=math.clamp((position.X-sv.AbsolutePosition.X)/math.max(1,sv.AbsoluteSize.X),0,1)
+		brightness=1-math.clamp((position.Y-sv.AbsolutePosition.Y)/math.max(1,sv.AbsoluteSize.Y),0,1)
+		updateVisuals();emit()
+	end
+	local function setHue(position) hue=math.clamp((position.X-hueBar.AbsolutePosition.X)/math.max(1,hueBar.AbsoluteSize.X),0,.999999);updateVisuals();emit() end
+	sv.InputBegan:Connect(function(input) capture(input,setSV) end)
+	hueBar.InputBegan:Connect(function(input) capture(input,setHue) end)
+	hdrTrack.InputBegan:Connect(function(input) capture(input,setHDR) end)
+	if alphaTrack then alphaTrack.InputBegan:Connect(function(input) capture(input,setAlpha) end) end
+	local changed=UserInputService.InputChanged:Connect(function(input)
+		local matches=mouseCapture and input.UserInputType==Enum.UserInputType.MouseMovement or input==activeInput
+		if activeInput and matches and activeSetter then activeSetter(input.Position) end
+	end)
+	local ended=UserInputService.InputEnded:Connect(function(input)
+		if input==activeInput or mouseCapture and input.UserInputType==Enum.UserInputType.MouseButton1 then activeInput=nil;activeSetter=nil;mouseCapture=false;content.ScrollingEnabled=true end
+	end)
+	table.insert(self._popup.Connections,changed);table.insert(self._popup.Connections,ended)
+	rebuildPalette();updateVisuals()
+	return popup
+end
+
 function Section:AddColorPicker(config)
 	config = config or {}
 	local value = config.Default or Color3.new(1, 1, 1)
@@ -3224,7 +3414,7 @@ function Section:AddColorPicker(config)
 	swatchHit.Activated:Connect(function()
 		self.Library:_openColorPopup(swatch, value, function(color, newAlpha) set(color, newAlpha, true, "user") end, {
 			Title = stripId(config.Name or "Color"), Alpha = alpha, ShowAlpha = config.ShowAlpha ~= false,
-			Presets = config.Presets,
+			Presets = config.Presets, Style = config.Style, Eyedropper = config.Eyedropper,
 		})
 	end)
 	handle = {
@@ -3422,7 +3612,7 @@ function Library:_notificationStyle(kind)
 	return self.Theme.Accent, "info"
 end
 
-function Library:_renderNotification(handle)
+function Library:_renderLegacyNotification(handle)
 	local view = handle.View
 	if not view or not view.Card.Parent then return end
 	if view.Content then view.Content:Destroy() end
@@ -3497,6 +3687,74 @@ function Library:_renderNotification(handle)
 	self:_updateNotificationProgress(handle)
 end
 
+-- Source-style alerts from alerts/alerts.cpp. Queue/dedupe/progress handling is
+-- intentionally kept separate, so changing the presentation cannot break it.
+function Library:_renderNotification(handle)
+	local view=handle.View
+	if not view or not view.Card.Parent then return end
+	if view.Content then view.Content:Destroy() end
+	local config=handle.Config
+	local card=view.Card
+	local width=math.max(160,self.NotificationHost.Size.X.Offset)
+	local bodyText=tostring(config.Text or config.Description or "")
+	local actions=type(config.Actions)=="table" and config.Actions or {}
+	local contentWidth=width-30
+	local bodyBounds=TextService:GetTextSize(bodyText,12,Enum.Font.Gotham,Vector2.new(contentWidth,1000))
+	local bodyHeight=bodyText=="" and 0 or math.clamp(math.ceil(bodyBounds.Y),16,120)
+	local buttonHeight=self._touchMode and 48 or 44
+	local visibleActions=math.min(2,#actions)
+	local actionsHeight=visibleActions*(buttonHeight+4)
+	local height=math.max(116,58+bodyHeight+(bodyHeight>0 and 12 or 0)+actionsHeight+10)
+	view.Height=height
+	view.Wrapper.Size=UDim2.new(1,0,0,height)
+	card.Size=UDim2.fromScale(1,1)
+	local content=create("Frame",{Name="AlertContent",Size=UDim2.fromScale(1,1),BackgroundTransparency=1,ZIndex=202,Parent=card})
+	view.Content=content
+	local countText=handle.Count>1 and ("  ×"..handle.Count) or ""
+	makeText(content,tostring(config.Title or "Notification")..countText,16,self.Theme.Text,{
+		Position=UDim2.fromOffset(15,12),Size=UDim2.new(1,-30,0,34),Font=Enum.Font.GothamBold,
+		TextTransparency=tr(self.Theme.TextAlpha),TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=204,
+	})
+	if bodyHeight>0 then
+		makeText(content,bodyText,12,self.Theme.TextDim,{
+			Position=UDim2.fromOffset(15,52),Size=UDim2.new(1,-30,0,bodyHeight),TextWrapped=true,
+			TextYAlignment=Enum.TextYAlignment.Top,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=204,
+		})
+	end
+	if config.Closable==true then
+		local close=makeButton(content,{Position=UDim2.new(1,-38,0,9),Size=UDim2.fromOffset(28,28),ZIndex=207})
+		makeIcon(self,close,"x",13,self.Theme.TextDim,{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(13,13),ZIndex=208})
+		close.Activated:Connect(function() handle:Close("dismissed") end)
+	end
+	local startY=height-10-actionsHeight
+	for index=1,visibleActions do
+		local action=actions[index]
+		local primary=index==1 and action.Style~="ghost"
+		local button=makeButton(content,{
+			Position=UDim2.fromOffset(10,startY+(index-1)*(buttonHeight+4)),Size=UDim2.new(1,-20,0,buttonHeight),
+			BackgroundColor3=primary and dim(self.Theme.Accent,.6) or self.Theme.Element,
+			BackgroundTransparency=primary and 0 or tr(self.Theme.ElementAlpha),ZIndex=205,
+		})
+		addCorner(button,64);addStroke(button,primary and dim(self.Theme.Accent,.8) or self.Theme.ElementOutline,1)
+		makeText(button,tostring(action.Text or "OK"),12,self.Theme.Text,{TextXAlignment=Enum.TextXAlignment.Center,Font=Enum.Font.GothamMedium,ZIndex=206})
+		local busy=false
+		button.Activated:Connect(function()
+			if busy then return end
+			busy=true
+			task.spawn(function()
+				local ok,result=pcall(function() return action.Callback and action.Callback(handle) end)
+				if not ok then warn("[EvernessUI] Notification action failed: "..tostring(result)) end
+				busy=false
+				if ok and result~=false and action.Close~=false then handle:Close("action") end
+			end)
+		end)
+	end
+	local accent=self:_notificationStyle(config.Type)
+	local progress=create("Frame",{Name="Progress",AnchorPoint=Vector2.new(0,1),Position=UDim2.fromScale(0,1),Size=UDim2.new(1,0,0,2),BackgroundColor3=accent,BackgroundTransparency=.08,ZIndex=205,Visible=false,Parent=content})
+	view.Progress=progress
+	self:_updateNotificationProgress(handle)
+end
+
 function Library:_updateNotificationProgress(handle)
 	local view=handle.View
 	if not view or not view.Progress then return end
@@ -3505,7 +3763,7 @@ function Library:_updateNotificationProgress(handle)
 	if type(progress)=="number" then alpha=math.clamp(progress,0,1)
 	elseif handle.Duration>0 then alpha=math.clamp(handle.Remaining/handle.Duration,0,1)
 	else alpha=1 end
-	view.Progress.Visible = type(progress)=="number" or (handle.Config.Persistent~=true and handle.Duration>0 and handle.Config.ShowTimer~=false)
+	view.Progress.Visible = type(progress)=="number" or (handle.Config.ShowTimer==true and handle.Config.Persistent~=true and handle.Duration>0)
 	view.Progress.Size=UDim2.new(alpha,0,0,3)
 end
 
@@ -3514,11 +3772,11 @@ function Library:_mountNotification(handle)
 	if handle.Remaining<=0 then handle.Remaining=handle.Duration end
 	table.insert(self._visibleNotifications,handle)
 	local wrapper=create("Frame",{Name="NotificationSlot",Size=UDim2.new(1,0,0,0),BackgroundTransparency=1,ClipsDescendants=false,LayoutOrder=-handle.Priority*100000+handle.Sequence,ZIndex=200,Parent=self.NotificationHost})
-	local card=create("CanvasGroup",{Name="Notification",Position=UDim2.new(1,18,0,0),Size=UDim2.fromScale(1,1),BackgroundColor3=self.Theme.Popup,BackgroundTransparency=tr(self.Theme.PopupAlpha),GroupTransparency=1,Active=true,ZIndex=201,Parent=wrapper})
-	addCorner(card,14);addStroke(card,self.Theme.PopupOutline,math.max(self.Theme.PopupOutlineAlpha,.12))
+	local card=create("CanvasGroup",{Name="Alert",Position=UDim2.fromOffset(0,12),Size=UDim2.fromScale(1,1),BackgroundColor3=self.Theme.Window,BackgroundTransparency=tr(self.Theme.WindowAlpha),GroupTransparency=1,Active=true,ZIndex=201,Parent=wrapper})
+	addCorner(card,16);addStroke(card,self.Theme.Border,self.Theme.BorderAlpha)
 	handle.View={Wrapper=wrapper,Card=card}
 	self:_renderNotification(handle)
-	card.Position=UDim2.new(1,18,0,0)
+	card.Position=UDim2.fromOffset(0,12)
 	play(card,.18,{Position=UDim2.fromOffset(0,0),GroupTransparency=0})
 	card.MouseEnter:Connect(function() if self._notificationOptions.PauseOnHover~=false then handle:Pause() end end)
 	card.MouseLeave:Connect(function() if self._notificationOptions.PauseOnHover~=false then handle:Resume() end end)
@@ -3545,8 +3803,7 @@ end
 
 function Library:_notificationLimit()
 	local configured = self._mobile and self._notificationOptions.MobileMaxVisible or self._notificationOptions.MaxVisible
-	local fallback = self._mobile and 2 or 4
-	return math.clamp(math.floor(tonumber(configured) or fallback), 1, 12)
+	return math.clamp(math.floor(tonumber(configured) or 1), 1, 12)
 end
 
 function Library:_notificationStackTooTall()
@@ -3646,7 +3903,7 @@ function Library:_closeNotification(handle, reason, immediate)
 	if view and view.Wrapper.Parent then
 		if immediate then view.Wrapper:Destroy()
 		else
-			local animation=play(view.Card,.14,{Position=UDim2.new(1,18,0,0),GroupTransparency=1})
+			local animation=play(view.Card,.14,{Position=UDim2.fromOffset(0,12),GroupTransparency=1})
 			animation.Completed:Once(function()
 				if view.Wrapper.Parent then
 					local collapse=play(view.Wrapper,.12,{Size=UDim2.new(1,0,0,0)})
