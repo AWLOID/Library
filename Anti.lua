@@ -2,6 +2,29 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+-- Alice/Everness "Solid" palette from themes/themes.cpp. Text is precomposed
+-- against the 12,12,12 background so the result matches ImGui's alpha output
+-- while all Roblox panels remain fully opaque.
+local Theme = {
+    Accent = Color3.fromRGB(120, 255, 100),
+    Window = Color3.fromRGB(12, 12, 12),
+    Settings = Color3.fromRGB(8, 8, 8),
+    Element = Color3.fromRGB(14, 14, 14),
+    ElementHover = Color3.fromRGB(16, 16, 16),
+    ElementActive = Color3.fromRGB(18, 18, 18),
+    Popup = Color3.fromRGB(14, 14, 14),
+    Outline = Color3.fromRGB(20, 20, 20),
+    Border = Color3.fromRGB(25, 25, 25),
+    Text = Color3.fromRGB(203, 203, 203),
+    TextBright = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(155, 155, 155),
+    TextUnsafe = Color3.fromRGB(255, 199, 56),
+    Slider = Color3.fromRGB(0, 0, 0),
+    WindowRounding = 12,
+    PopupRounding = 16,
+    ElementRounding = 12,
+}
+
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -36,6 +59,40 @@ local function NewInstance(className, properties, children)
     end
     for _, child in ipairs(children or {}) do
         child.Parent = inst
+    end
+
+    -- Give every standalone control row the same solid surface used by
+    -- Alice/Everness elements. Containers and popup holders stay transparent.
+    if className == "Frame" then
+        local name = tostring(inst.Name)
+        local isElementRow = string.match(name, "^Dropdown_")
+            or string.match(name, "^MultiDropdown_")
+            or string.match(name, "^ColorPicker_")
+            or string.match(name, "^Textbox_")
+            or string.match(name, "^Keybind_")
+            or string.match(name, "^Checkbox_")
+            or string.match(name, "^Switch_")
+            or string.match(name, "^Stepper_")
+            or string.match(name, "^RangeSlider_")
+            or string.match(name, "^ToggleSlider_")
+            or string.match(name, "^SearchableDropdown_")
+            or string.match(name, "^Input_")
+        if isElementRow and properties and properties.BackgroundTransparency == 1 then
+            inst.BackgroundColor3 = Theme.Element
+            inst.BackgroundTransparency = 0
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, Theme.ElementRounding)
+            corner.Parent = inst
+        end
+
+        local isPopupHolder = string.match(name, "^DropdownOptionsHolder_")
+            or string.match(name, "^MultiDropdownOptionsHolder_")
+            or string.match(name, "^SearchableDropdownHolder_")
+        if isPopupHolder then
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, Theme.PopupRounding)
+            corner.Parent = inst
+        end
     end
     return inst
 end
@@ -257,7 +314,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 20),
             Font = Enum.Font.GothamMedium,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(170, 170, 170),
+            TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = text,
             Parent = parent,
@@ -291,7 +348,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 0),
                 Font = Enum.Font.GothamBold,
                 TextSize = 14,
-                TextColor3 = Color3.fromRGB(210, 210, 210),
+                TextColor3 = Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextWrapped = true,
                 Text = title,
@@ -306,7 +363,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(160, 160, 160),
+            TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Top,
             TextWrapped = true,
@@ -335,21 +392,17 @@ local function CreateElementFactory(context)
             AutomaticSize = Enum.AutomaticSize.X,
             Font = Enum.Font.GothamBold,
             TextSize = 12,
-            TextColor3 = Accent.Value,
+            TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = string.upper(text or ""),
             Parent = row,
         })
 
-        Accent.Changed:Connect(function(color)
-            titleLabel.TextColor3 = color
-        end)
-
         local line = NewInstance("Frame", {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.new(1, -68, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+            BackgroundColor3 = Theme.Outline,
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -379,10 +432,16 @@ local function CreateElementFactory(context)
 
         local row = NewInstance("Frame", {
             Name = "Toggle_" .. name,
-            BackgroundTransparency = 1,
+            BackgroundColor3 = Theme.Element,
+            BorderSizePixel = 0,
             LayoutOrder = 1,
-            Size = UDim2.new(1, 0, 0, 26),
+            Size = UDim2.new(1, 0, 0, 34),
             Parent = container,
+        })
+
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(0, Theme.ElementRounding),
+            Parent = row,
         })
 
         local subHolder = nil
@@ -407,10 +466,11 @@ local function CreateElementFactory(context)
 
         NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, -48, 1, 0),
+            Position = UDim2.fromOffset(12, 0),
+            Size = UDim2.new(1, -64, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -419,18 +479,23 @@ local function CreateElementFactory(context)
         local box = NewInstance("TextButton", {
             Name = "Box",
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, 0, 0.5, 0),
-            Size = UDim2.fromOffset(20, 20),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            Position = UDim2.new(1, -12, 0.5, 0),
+            Size = UDim2.fromOffset(28, 16),
+            BackgroundColor3 = Theme.ElementHover,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
             Parent = row,
         })
 
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = box,
+        })
+
         local boxStroke = NewInstance("UIStroke", {
-            Color = Accent.Value,
-            Transparency = default and 0.3 or 1,
+            Color = Theme.Outline,
+            Transparency = 0,
             Thickness = 1,
             Parent = box,
         })
@@ -443,23 +508,39 @@ local function CreateElementFactory(context)
             Parent = box,
         })
 
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = fill,
+        })
+
+        local knob = NewInstance("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = default and UDim2.new(1, -8, 0.5, 0) or UDim2.fromOffset(8, 8),
+            Size = UDim2.fromOffset(8, 8),
+            BackgroundColor3 = Theme.TextBright,
+            BorderSizePixel = 0,
+            ZIndex = fill.ZIndex + 1,
+            Parent = box,
+        })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
+
         local state = default
 
         local function ApplyVisual(animated)
             local goal = { BackgroundTransparency = state and 0 or 1 }
-            local strokeGoal = { Transparency = state and 0.3 or 1 }
+            local knobGoal = { Position = state and UDim2.new(1, -8, 0.5, 0) or UDim2.fromOffset(8, 8) }
             if animated then
                 TweenService:Create(fill, TweenInfo.new(0.15), goal):Play()
-                TweenService:Create(boxStroke, TweenInfo.new(0.15), strokeGoal):Play()
+                TweenService:Create(knob, TweenInfo.new(0.15), knobGoal):Play()
             else
                 fill.BackgroundTransparency = goal.BackgroundTransparency
-                boxStroke.Transparency = strokeGoal.Transparency
+                knob.Position = knobGoal.Position
             end
         end
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
-            boxStroke.Color = color
         end)
 
         box.MouseButton1Click:Connect(function()
@@ -516,29 +597,35 @@ local function CreateElementFactory(context)
 
         local row = NewInstance("Frame", {
             Name = "Slider_" .. name,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 38),
+            BackgroundColor3 = Theme.Element,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 42),
             Parent = parent,
         })
 
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.ElementRounding), Parent = row })
+
         local label = NewInstance("TextLabel", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 18),
+            Position = UDim2.fromOffset(12, 2),
+            Size = UDim2.new(1, -24, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(default),
             Parent = row,
         })
 
         local track = NewInstance("Frame", {
-            Position = UDim2.fromOffset(0, 23),
-            Size = UDim2.new(1, 0, 0, 8),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            Position = UDim2.fromOffset(12, 27),
+            Size = UDim2.new(1, -24, 0, 6),
+            BackgroundColor3 = Theme.Slider,
             BorderSizePixel = 0,
             Parent = row,
         })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
 
         local fillRatio = (max > min) and Clamp01((default - min) / (max - min)) or 0
 
@@ -549,15 +636,19 @@ local function CreateElementFactory(context)
             Parent = track,
         })
 
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
+
         local knob = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(fillRatio, 0, 0.5, 0),
-            Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
+            Size = UDim2.fromOffset(10, 10),
+            BackgroundColor3 = Theme.TextBright,
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
         })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 
         Accent.Changed:Connect(function(color)
             fill.BackgroundColor3 = color
@@ -618,26 +709,31 @@ local function CreateElementFactory(context)
         local btn = NewInstance("TextButton", {
             Name = "Button_" .. name,
             Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.GothamMedium,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             Text = name,
             Parent = parent,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
+            Parent = btn,
+        })
+
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(0, Theme.ElementRounding),
             Parent = btn,
         })
 
         btn.MouseButton1Click:Connect(function()
             TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Accent.Value }):Play()
             task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(20, 20, 20) }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Element }):Play()
             end)
             if callback then
                 callback()
@@ -671,7 +767,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -680,7 +776,7 @@ local function CreateElementFactory(context)
         local track = NewInstance("Frame", {
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 8),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -719,14 +815,14 @@ local function CreateElementFactory(context)
 
         local holder = NewInstance("Frame", {
             Name = "Image",
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, height),
             Parent = parent,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = holder,
         })
@@ -766,7 +862,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -776,19 +872,19 @@ local function CreateElementFactory(context)
             Name = "Box",
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -816,7 +912,7 @@ local function CreateElementFactory(context)
 
         local optionsHolder = NewInstance("Frame", {
             Name = "DropdownOptionsHolder_" .. name,
-            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+            BackgroundColor3 = Theme.Popup,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, 28),
             Visible = false,
@@ -826,7 +922,7 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -840,7 +936,7 @@ local function CreateElementFactory(context)
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120),
+            ScrollBarImageColor3 = Theme.TextDim,
             ScrollBarImageTransparency = 0.4,
             ZIndex = optionsHolder.ZIndex + 1,
             Parent = optionsHolder,
@@ -857,11 +953,11 @@ local function CreateElementFactory(context)
         local function HighlightSelected()
             for opt, btn in pairs(optionButtons) do
                 if opt == currentValue then
-                    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                    btn.BackgroundColor3 = Theme.ElementHover
                     btn.TextColor3 = Accent.Value
                 else
-                    btn.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
-                    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+                    btn.BackgroundColor3 = Theme.Popup
+                    btn.TextColor3 = Theme.Text
                 end
             end
         end
@@ -869,7 +965,7 @@ local function CreateElementFactory(context)
         local function Close()
             isOpen = false
             optionsHolder.Visible = false
-            boxStroke.Color = Color3.fromRGB(60, 60, 60)
+            boxStroke.Color = Theme.Outline
             arrow.Text = "\u{25BC}"
         end
 
@@ -883,13 +979,13 @@ local function CreateElementFactory(context)
             for index, opt in ipairs(options) do
                 local optBtn = NewInstance("TextButton", {
                     Name = "Option_" .. tostring(opt),
-                    BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+                    BackgroundColor3 = Theme.Popup,
                     BorderSizePixel = 0,
                     AutoButtonColor = false,
                     Size = UDim2.new(1, 0, 0, 28),
                     Font = Enum.Font.Gotham,
                     TextSize = 13,
-                    TextColor3 = Color3.fromRGB(200, 200, 200),
+                    TextColor3 = Theme.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Text = "   " .. tostring(opt),
                     LayoutOrder = index,
@@ -901,12 +997,12 @@ local function CreateElementFactory(context)
 
                 optBtn.MouseEnter:Connect(function()
                     if opt ~= currentValue then
-                        optBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+                        optBtn.BackgroundColor3 = Theme.ElementActive
                     end
                 end)
                 optBtn.MouseLeave:Connect(function()
                     if opt ~= currentValue then
-                        optBtn.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+                        optBtn.BackgroundColor3 = Theme.Popup
                     end
                 end)
                 optBtn.MouseButton1Click:Connect(function()
@@ -994,7 +1090,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1004,19 +1100,19 @@ local function CreateElementFactory(context)
             Name = "Box",
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 24),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "",
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -1044,7 +1140,7 @@ local function CreateElementFactory(context)
 
         local optionsHolder = NewInstance("Frame", {
             Name = "MultiDropdownOptionsHolder_" .. name,
-            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+            BackgroundColor3 = Theme.Popup,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, math.min(#options, 8) * 24),
             Visible = false,
@@ -1054,7 +1150,7 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -1068,7 +1164,7 @@ local function CreateElementFactory(context)
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120),
+            ScrollBarImageColor3 = Theme.TextDim,
             ScrollBarImageTransparency = 0.4,
             ZIndex = optionsHolder.ZIndex + 1,
             Parent = optionsHolder,
@@ -1116,7 +1212,7 @@ local function CreateElementFactory(context)
             for _, opt in ipairs(options) do
                 local optRow = NewInstance("Frame", {
                     Name = "Option_" .. tostring(opt),
-                    BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+                    BackgroundColor3 = Theme.Popup,
                     BorderSizePixel = 0,
                     Size = UDim2.new(1, 0, 0, 24),
                     ZIndex = optionsScroll.ZIndex + 1,
@@ -1128,7 +1224,7 @@ local function CreateElementFactory(context)
                     Size = UDim2.fromScale(1, 1),
                     Font = Enum.Font.Gotham,
                     TextSize = 13,
-                    TextColor3 = Color3.fromRGB(200, 200, 200),
+                    TextColor3 = Theme.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Text = "  " .. tostring(opt),
                     ZIndex = optRow.ZIndex + 1,
@@ -1220,7 +1316,7 @@ local function CreateElementFactory(context)
     function Factory.ColorPicker(parent, config)
         config = config or {}
         local name = config.Name or "Color"
-        local default = config.Default or Color3.fromRGB(255, 255, 255)
+        local default = config.Default or Theme.TextBright
         local callback = config.Callback
 
         local row = NewInstance("Frame", {
@@ -1235,7 +1331,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -48, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1254,7 +1350,7 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(80, 80, 80),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = swatch,
         })
@@ -1264,7 +1360,7 @@ local function CreateElementFactory(context)
 
         local panel = NewInstance("Frame", {
             Name = "ColorPickerPanel_" .. name,
-            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+            BackgroundColor3 = Theme.Popup,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(180, 204),
             Visible = false,
@@ -1272,14 +1368,16 @@ local function CreateElementFactory(context)
             Parent = ScreenGui,
         })
 
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, Theme.PopupRounding), Parent = panel })
+
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = panel,
         })
 
         local panelHandle = NewInstance("Frame", {
-            BackgroundColor3 = Color3.fromRGB(24, 24, 24),
+            BackgroundTransparency = 1,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 22),
             ZIndex = panel.ZIndex + 1,
@@ -1292,7 +1390,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.GothamMedium,
             TextSize = 12,
-            TextColor3 = Color3.fromRGB(180, 180, 180),
+            TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             ZIndex = panelHandle.ZIndex + 1,
@@ -1307,7 +1405,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(180, 180, 180),
+            TextColor3 = Theme.TextDim,
             Text = "x",
             ZIndex = panelHandle.ZIndex + 1,
             Parent = panelHandle,
@@ -1323,6 +1421,8 @@ local function CreateElementFactory(context)
             ZIndex = panel.ZIndex + 1,
             Parent = panel,
         })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(0, 7), Parent = svMap })
 
         local svWhiteOverlay = NewInstance("Frame", {
             Size = UDim2.fromScale(1, 1),
@@ -1369,11 +1469,13 @@ local function CreateElementFactory(context)
 
         local hueTrack = NewInstance("Frame", {
             Position = UDim2.fromOffset(10, 154),
-            Size = UDim2.fromOffset(160, 14),
+            Size = UDim2.fromOffset(160, 8),
             BorderSizePixel = 0,
             ZIndex = panel.ZIndex + 1,
             Parent = panel,
         })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = hueTrack })
 
         local hueSequence = {}
         for i = 0, 10 do
@@ -1388,12 +1490,14 @@ local function CreateElementFactory(context)
         local hueCursor = NewInstance("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(h, 0, 0.5, 0),
-            Size = UDim2.fromOffset(4, 18),
+            Size = UDim2.fromOffset(5, 14),
             BackgroundColor3 = Color3.new(1, 1, 1),
             BorderSizePixel = 0,
             ZIndex = hueTrack.ZIndex + 1,
             Parent = hueTrack,
         })
+
+        NewInstance("UICorner", { CornerRadius = UDim.new(1, 0), Parent = hueCursor })
 
         NewInstance("UIStroke", {
             Color = Color3.new(0, 0, 0),
@@ -1404,11 +1508,11 @@ local function CreateElementFactory(context)
         local hexBox = NewInstance("TextBox", {
             Position = UDim2.fromOffset(10, 178),
             Size = UDim2.fromOffset(160, 16),
-            BackgroundColor3 = Color3.fromRGB(26, 26, 26),
+            BackgroundColor3 = Theme.ElementActive,
             BorderSizePixel = 0,
             Font = Enum.Font.Code,
             TextSize = 12,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             ClearTextOnFocus = false,
             Text = "#" .. default:ToHex(),
             ZIndex = panel.ZIndex + 1,
@@ -1479,8 +1583,8 @@ local function CreateElementFactory(context)
             local swatchPos = swatch.AbsolutePosition
             local swatchSize = swatch.AbsoluteSize
             local panelSize = panel.AbsoluteSize
-            local x = swatchPos.X - panelSize.X + swatchSize.X
-            local y = swatchPos.Y + swatchSize.Y + 4
+            local x = swatchPos.X + swatchSize.X + 5
+            local y = swatchPos.Y - 100
             x, y = ClampOpenPosition(x, y, panelSize.X, panelSize.Y)
             panel.Position = UDim2.fromOffset(x, y)
             panel.Visible = true
@@ -1537,7 +1641,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1546,13 +1650,13 @@ local function CreateElementFactory(context)
         local box = NewInstance("TextBox", {
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 20),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             PlaceholderText = placeholder,
-            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
+            PlaceholderColor3 = Theme.TextDim,
             ClearTextOnFocus = false,
             Text = default,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -1560,7 +1664,7 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -1605,7 +1709,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -90, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1615,18 +1719,18 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(84, 20),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 12,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             Text = FormatKeycodeName(default),
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -1699,7 +1803,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(55, 55, 55),
+            BackgroundColor3 = Theme.Outline,
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -1733,7 +1837,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1743,7 +1847,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(18, 18),
-            BackgroundColor3 = default and Accent.Value or Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = default and Accent.Value or Theme.Element,
             BackgroundTransparency = default and 0 or 1,
             BorderSizePixel = 0,
             AutoButtonColor = false,
@@ -1757,7 +1861,7 @@ local function CreateElementFactory(context)
         })
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = default and Accent.Value or Color3.fromRGB(70, 70, 70),
+            Color = default and Accent.Value or Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -1767,7 +1871,7 @@ local function CreateElementFactory(context)
             Size = UDim2.fromScale(1, 1),
             Font = Enum.Font.GothamBold,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(20, 20, 20),
+            TextColor3 = Theme.Element,
             Text = "\u{2713}",
             Visible = default,
             Parent = box,
@@ -1778,7 +1882,7 @@ local function CreateElementFactory(context)
         local function ApplyVisual(animated)
             check.Visible = state
             local bgGoal = { BackgroundTransparency = state and 0 or 1 }
-            boxStroke.Color = state and Accent.Value or Color3.fromRGB(70, 70, 70)
+            boxStroke.Color = state and Accent.Value or Theme.Outline
             box.BackgroundColor3 = Accent.Value
             if animated then
                 TweenService:Create(box, TweenInfo.new(0.12), bgGoal):Play()
@@ -1789,7 +1893,7 @@ local function CreateElementFactory(context)
 
         Accent.Changed:Connect(function(color)
             box.BackgroundColor3 = color
-            boxStroke.Color = state and color or Color3.fromRGB(70, 70, 70)
+            boxStroke.Color = state and color or Theme.Outline
         end)
 
         box.MouseButton1Click:Connect(function()
@@ -1829,7 +1933,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -52, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -1839,7 +1943,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(40, 20),
-            BackgroundColor3 = default and Accent.Value or Color3.fromRGB(45, 45, 45),
+            BackgroundColor3 = default and Accent.Value or Theme.ElementHover,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
@@ -1855,7 +1959,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = default and UDim2.new(1, -11, 0.5, 0) or UDim2.new(0, 11, 0.5, 0),
             Size = UDim2.fromOffset(14, 14),
-            BackgroundColor3 = Color3.fromRGB(240, 240, 240),
+            BackgroundColor3 = Theme.TextBright,
             BorderSizePixel = 0,
             Parent = track,
         })
@@ -1869,7 +1973,7 @@ local function CreateElementFactory(context)
 
         local function ApplyVisual(animated)
             local knobGoal = { Position = state and UDim2.new(1, -11, 0.5, 0) or UDim2.new(0, 11, 0.5, 0) }
-            local trackGoal = { BackgroundColor3 = state and Accent.Value or Color3.fromRGB(45, 45, 45) }
+            local trackGoal = { BackgroundColor3 = state and Accent.Value or Theme.ElementHover }
             if animated then
                 TweenService:Create(knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad), knobGoal):Play()
                 TweenService:Create(track, TweenInfo.new(0.15), trackGoal):Play()
@@ -1925,7 +2029,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 16),
                 Font = Enum.Font.Gotham,
                 TextSize = 14,
-                TextColor3 = Color3.fromRGB(200, 200, 200),
+                TextColor3 = Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = name,
                 Parent = row,
@@ -1935,13 +2039,13 @@ local function CreateElementFactory(context)
         local bar = NewInstance("Frame", {
             Position = UDim2.fromOffset(0, hasLabel and 20 or 0),
             Size = UDim2.new(1, 0, 0, 24),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = bar,
         })
@@ -1961,10 +2065,10 @@ local function CreateElementFactory(context)
                 if opt == currentValue then
                     btn.BackgroundColor3 = Accent.Value
                     btn.BackgroundTransparency = 0.15
-                    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+                    btn.TextColor3 = Theme.TextBright
                 else
                     btn.BackgroundTransparency = 1
-                    btn.TextColor3 = Color3.fromRGB(190, 190, 190)
+                    btn.TextColor3 = Theme.Text
                 end
             end
         end
@@ -1980,7 +2084,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1 / count, 0, 1, 0),
                 Font = Enum.Font.GothamMedium,
                 TextSize = 12,
-                TextColor3 = Color3.fromRGB(190, 190, 190),
+                TextColor3 = Theme.Text,
                 Text = tostring(opt),
                 LayoutOrder = index,
                 Parent = bar,
@@ -2036,7 +2140,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, 0, 0, 16),
                 Font = Enum.Font.Gotham,
                 TextSize = 14,
-                TextColor3 = Color3.fromRGB(200, 200, 200),
+                TextColor3 = Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = name,
                 Parent = row,
@@ -2073,7 +2177,7 @@ local function CreateElementFactory(context)
                 Size = UDim2.new(1, -24, 1, 0),
                 Font = Enum.Font.Gotham,
                 TextSize = 13,
-                TextColor3 = Color3.fromRGB(190, 190, 190),
+                TextColor3 = Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = tostring(opt),
                 Parent = optRow,
@@ -2083,7 +2187,7 @@ local function CreateElementFactory(context)
                 AnchorPoint = Vector2.new(1, 0.5),
                 Position = UDim2.new(1, 0, 0.5, 0),
                 Size = UDim2.fromOffset(16, 16),
-                BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+                BackgroundColor3 = Theme.Element,
                 BorderSizePixel = 0,
                 Parent = optRow,
             })
@@ -2094,7 +2198,7 @@ local function CreateElementFactory(context)
             })
 
             NewInstance("UIStroke", {
-                Color = Color3.fromRGB(70, 70, 70),
+                Color = Theme.Outline,
                 Thickness = 1,
                 Parent = ring,
             })
@@ -2162,7 +2266,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -110, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2172,13 +2276,13 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Size = UDim2.fromOffset(100, 22),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = controls,
         })
@@ -2189,7 +2293,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             Text = "-",
             Parent = controls,
         })
@@ -2200,7 +2304,7 @@ local function CreateElementFactory(context)
             BackgroundTransparency = 1,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             Text = tostring(default),
             Parent = controls,
         })
@@ -2213,7 +2317,7 @@ local function CreateElementFactory(context)
             AutoButtonColor = false,
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             Text = "+",
             Parent = controls,
         })
@@ -2231,7 +2335,7 @@ local function CreateElementFactory(context)
         local function FlashButton(btn)
             TweenService:Create(btn, TweenInfo.new(0.08), { TextColor3 = Accent.Value }):Play()
             task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Theme.Text }):Play()
             end)
         end
 
@@ -2278,7 +2382,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(defaultLow) .. " - " .. tostring(defaultHigh),
             Parent = row,
@@ -2287,7 +2391,7 @@ local function CreateElementFactory(context)
         local track = NewInstance("Frame", {
             Position = UDim2.fromOffset(0, 23),
             Size = UDim2.new(1, 0, 0, 8),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -2307,7 +2411,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(lowRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
+            BackgroundColor3 = Theme.TextBright,
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
@@ -2317,7 +2421,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(highRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
+            BackgroundColor3 = Theme.TextBright,
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
@@ -2413,7 +2517,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(0.5, 0, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(160, 160, 160),
+            TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = key,
             Parent = row,
@@ -2426,7 +2530,7 @@ local function CreateElementFactory(context)
             BackgroundTransparency = 1,
             Font = Enum.Font.GothamMedium,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Right,
             Text = tostring(value),
             Parent = row,
@@ -2457,7 +2561,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -90, 1, 0),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2538,7 +2642,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -48, 0, 18),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name .. ": " .. tostring(sliderDefault),
             Parent = row,
@@ -2548,7 +2652,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(1, 0),
             Position = UDim2.new(1, 0, 0, 0),
             Size = UDim2.fromOffset(20, 18),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = "",
@@ -2566,7 +2670,7 @@ local function CreateElementFactory(context)
         local track = NewInstance("Frame", {
             Position = UDim2.fromOffset(0, 23),
             Size = UDim2.new(1, 0, 0, 8),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Parent = row,
         })
@@ -2584,7 +2688,7 @@ local function CreateElementFactory(context)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(fillRatio, 0, 0.5, 0),
             Size = UDim2.fromOffset(13, 18),
-            BackgroundColor3 = Color3.fromRGB(230, 230, 230),
+            BackgroundColor3 = Theme.TextBright,
             BorderSizePixel = 0,
             ZIndex = track.ZIndex + 1,
             Parent = track,
@@ -2658,7 +2762,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2667,19 +2771,19 @@ local function CreateElementFactory(context)
         local box = NewInstance("TextButton", {
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 24),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = "  " .. tostring(default or ""),
             Parent = row,
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -2704,7 +2808,7 @@ local function CreateElementFactory(context)
 
         local optionsHolder = NewInstance("Frame", {
             Name = "SearchableDropdownHolder_" .. name,
-            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+            BackgroundColor3 = Theme.Popup,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(0, panelHeight),
             Visible = false,
@@ -2713,7 +2817,7 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = optionsHolder,
         })
@@ -2721,13 +2825,13 @@ local function CreateElementFactory(context)
         local searchBox = NewInstance("TextBox", {
             Position = UDim2.fromOffset(4, 4),
             Size = UDim2.new(1, -8, 0, 20),
-            BackgroundColor3 = Color3.fromRGB(26, 26, 26),
+            BackgroundColor3 = Theme.ElementActive,
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 12,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             PlaceholderText = "Search...",
-            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
+            PlaceholderColor3 = Theme.TextDim,
             ClearTextOnFocus = false,
             Text = "",
             ZIndex = optionsHolder.ZIndex + 1,
@@ -2774,13 +2878,13 @@ local function CreateElementFactory(context)
             for _, opt in ipairs(options) do
                 if filterText == "" or tostring(opt):lower():find(filterText, 1, true) then
                     local optBtn = NewInstance("TextButton", {
-                        BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+                        BackgroundColor3 = Theme.Popup,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
                         Size = UDim2.new(1, 0, 0, 24),
                         Font = Enum.Font.Gotham,
                         TextSize = 13,
-                        TextColor3 = Color3.fromRGB(200, 200, 200),
+                        TextColor3 = Theme.Text,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         Text = "  " .. tostring(opt),
                         ZIndex = listHolder.ZIndex + 1,
@@ -2863,7 +2967,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, 0, 0, 16),
             Font = Enum.Font.Gotham,
             TextSize = 14,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = row,
@@ -2872,13 +2976,13 @@ local function CreateElementFactory(context)
         local box = NewInstance("TextBox", {
             Position = UDim2.fromOffset(0, 20),
             Size = UDim2.new(1, 0, 0, 20),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Element,
             BorderSizePixel = 0,
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextColor3 = Theme.Text,
             PlaceholderText = placeholder,
-            PlaceholderColor3 = Color3.fromRGB(110, 110, 110),
+            PlaceholderColor3 = Theme.TextDim,
             ClearTextOnFocus = false,
             Text = tostring(default),
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -2890,7 +2994,7 @@ local function CreateElementFactory(context)
         end
 
         local boxStroke = NewInstance("UIStroke", {
-            Color = Color3.fromRGB(60, 60, 60),
+            Color = Theme.Outline,
             Thickness = 1,
             Parent = box,
         })
@@ -2906,7 +3010,7 @@ local function CreateElementFactory(context)
         end)
 
         box.FocusLost:Connect(function(enterPressed)
-            boxStroke.Color = Color3.fromRGB(60, 60, 60)
+            boxStroke.Color = Theme.Outline
 
             if numeric then
                 local n = tonumber(box.Text)
@@ -2955,7 +3059,7 @@ local function CreateElementFactory(context)
 
         local container = NewInstance("Frame", {
             Name = "Group_" .. name,
-            BackgroundColor3 = Color3.fromRGB(18, 18, 18),
+            BackgroundColor3 = Theme.ElementActive,
             BorderSizePixel = 0,
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
@@ -2963,8 +3067,13 @@ local function CreateElementFactory(context)
         })
 
         NewInstance("UIStroke", {
-            Color = Color3.fromRGB(50, 50, 50),
+            Color = Theme.Outline,
             Thickness = 1,
+            Parent = container,
+        })
+
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(0, Theme.ElementRounding),
             Parent = container,
         })
 
@@ -2988,7 +3097,7 @@ local function CreateElementFactory(context)
             Size = UDim2.new(1, -32, 1, 0),
             Font = Enum.Font.GothamBold,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(210, 210, 210),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = name,
             Parent = header,
@@ -3304,10 +3413,10 @@ local function CreateWindow(config)
     config = config or {}
 
     local windowName = config.Name or "Lurk"
-    local windowSize = config.Size or UDim2.fromOffset(430, 320)
-    local sidebarWidth = config.SidebarWidth or 108
+    local windowSize = config.Size or UDim2.fromOffset(680, 460)
+    local sidebarWidth = config.SidebarWidth or 180
     local openButtonText = config.OpenButtonText or string.sub(windowName, 1, 1)
-    local startColor = config.AccentColor or Color3.fromRGB(255, 30, 30)
+    local startColor = config.AccentColor or Theme.Accent
 
     local existing = GuiParent:FindFirstChild("LurkGui_" .. windowName)
     if existing then
@@ -3338,7 +3447,7 @@ local function CreateWindow(config)
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
         Size = windowSize,
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundColor3 = Theme.Window,
         BorderSizePixel = 0,
         ClipsDescendants = false,
         Visible = false,
@@ -3346,28 +3455,51 @@ local function CreateWindow(config)
         Parent = ScreenGui,
     })
 
-    local function AddLayer(parent, inset, color, zIndexOffset)
-        return NewInstance("Frame", {
-            BackgroundColor3 = color,
-            BorderSizePixel = 0,
-            Position = UDim2.fromOffset(inset, inset),
-            Size = UDim2.new(1, -inset * 2, 1, -inset * 2),
-            ZIndex = mainWindow.ZIndex + zIndexOffset,
-            Parent = parent,
-        })
-    end
+    NewInstance("UICorner", {
+        CornerRadius = UDim.new(0, Theme.WindowRounding),
+        Parent = mainWindow,
+    })
 
-    AddLayer(mainWindow, 1, Color3.fromRGB(60, 60, 60), 1)
-    local bg1 = AddLayer(mainWindow, 2, Color3.fromRGB(40, 40, 40), 2)
-    AddLayer(bg1, 3, Color3.fromRGB(60, 60, 60), 1)
-    local bg2 = AddLayer(bg1, 4, Color3.fromRGB(12, 12, 12), 2)
+    NewInstance("UIStroke", {
+        Color = Theme.Border,
+        Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = mainWindow,
+    })
+
+    -- The old Lurk skin used four nested bevel layers. Everness uses one
+    -- clean surface and a single outline.
+    local bg2 = mainWindow
+
+    local rightOutline = NewInstance("Frame", {
+        Name = "RightOutline",
+        Position = UDim2.fromOffset(sidebarWidth, 0),
+        Size = UDim2.new(1, -sidebarWidth, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Active = false,
+        ZIndex = bg2.ZIndex + 1,
+        Parent = bg2,
+    })
+
+    NewInstance("UICorner", {
+        CornerRadius = UDim.new(0, Theme.WindowRounding),
+        Parent = rightOutline,
+    })
+
+    NewInstance("UIStroke", {
+        Color = Theme.Border,
+        Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = rightOutline,
+    })
 
     local titleBar = NewInstance("Frame", {
         Name = "TitleBar",
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.new(1, -12, 0, 24),
+        Position = UDim2.fromOffset(sidebarWidth + 1, 1),
+        Size = UDim2.new(1, -sidebarWidth - 2, 0, 48),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
@@ -3377,79 +3509,65 @@ local function CreateWindow(config)
         Size = UDim2.fromScale(1, 1),
         Font = Enum.Font.GothamBold,
         TextSize = 15,
-        TextColor3 = Accent.Value,
+        TextColor3 = Theme.Text,
         Text = windowName,
         ZIndex = titleBar.ZIndex + 1,
         Parent = titleBar,
     })
 
-    Accent.Changed:Connect(function(color)
-        titleText.TextColor3 = color
-    end)
-
     local sidebar = NewInstance("Frame", {
         Name = "Sidebar",
-        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(6, 33),
-        Size = UDim2.new(0, sidebarWidth - 6, 1, -39),
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(0, sidebarWidth, 1, 0),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
 
-    AddLayer(sidebar, 1, Color3.fromRGB(41, 41, 41), 1)
-    local sidebarInner = AddLayer(sidebar, 2, Color3.fromRGB(0, 0, 0), 2)
+    local sidebarInner = sidebar
 
     local logoLabel = NewInstance("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 58),
-        Position = UDim2.fromOffset(0, 8),
+        Size = UDim2.new(1, 0, 0, 80),
+        Position = UDim2.fromOffset(0, 0),
         Font = Enum.Font.GothamBlack,
         Text = openButtonText,
-        TextSize = 38,
-        TextColor3 = Color3.fromRGB(220, 220, 220),
+        TextSize = 32,
+        TextColor3 = Theme.Text,
         ZIndex = sidebarInner.ZIndex + 1,
         Parent = sidebarInner,
     })
 
-    local logoGlow = NewInstance("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = logoLabel.Size,
-        Position = logoLabel.Position,
-        Font = logoLabel.Font,
-        Text = logoLabel.Text,
-        TextSize = logoLabel.TextSize + 6,
-        TextColor3 = Accent.Value,
-        TextTransparency = 0.7,
-        ZIndex = logoLabel.ZIndex - 1,
-        Parent = sidebarInner,
-    })
-
-    Accent.Changed:Connect(function(color)
-        logoGlow.TextColor3 = color
-    end)
-
     local contentArea = NewInstance("Frame", {
         Name = "ContentArea",
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundColor3 = Theme.Window,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(sidebarWidth, 33),
-        Size = UDim2.new(1, -sidebarWidth - 9, 1, -39),
+        Position = UDim2.fromOffset(sidebarWidth + 1, 51),
+        Size = UDim2.new(1, -sidebarWidth - 2, 1, -52),
         ZIndex = bg2.ZIndex + 1,
         Parent = bg2,
     })
+    local contentInner = contentArea
 
-    AddLayer(contentArea, 1, Color3.fromRGB(40, 40, 40), 1)
-    local contentInner = AddLayer(contentArea, 2, Color3.fromRGB(30, 30, 30), 2)
+    NewInstance("Frame", {
+        Name = "TopSeparator",
+        Position = UDim2.fromOffset(sidebarWidth, 50),
+        Size = UDim2.new(1, -sidebarWidth, 0, 1),
+        BackgroundColor3 = Theme.Border,
+        BorderSizePixel = 0,
+        ZIndex = bg2.ZIndex + 2,
+        Parent = bg2,
+    })
 
     local tabTitle = NewInstance("TextLabel", {
         Name = "TabTitle",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(16, 8),
-        Size = UDim2.new(1, -32, 0, 24),
+        Position = UDim2.fromOffset(10, 4),
+        Size = UDim2.new(1, -20, 0, 24),
         Font = Enum.Font.GothamBold,
-        TextSize = 17,
-        TextColor3 = Color3.fromRGB(200, 200, 200),
+        TextSize = 14,
+        TextColor3 = Theme.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = "",
         ZIndex = contentInner.ZIndex + 1,
@@ -3459,8 +3577,8 @@ local function CreateWindow(config)
     local scrollHolder = NewInstance("Frame", {
         Name = "ScrollHolder",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 36),
-        Size = UDim2.new(1, -24, 1, -42),
+        Position = UDim2.fromOffset(10, 34),
+        Size = UDim2.new(1, -20, 1, -44),
         ZIndex = contentInner.ZIndex + 1,
         Parent = contentInner,
     })
@@ -3469,8 +3587,8 @@ local function CreateWindow(config)
         Name = "TabsHolder",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(8, 84),
-        Size = UDim2.new(1, -16, 1, -92),
+        Position = UDim2.fromOffset(10, 80),
+        Size = UDim2.new(1, -20, 1, -90),
         CanvasSize = UDim2.new(0, 0, 0, 0),
         ScrollingDirection = Enum.ScrollingDirection.Y,
         ScrollBarThickness = 0,
@@ -3481,14 +3599,14 @@ local function CreateWindow(config)
     })
 
     local tabsListLayout = NewInstance("UIListLayout", {
-        Padding = UDim.new(0, 6),
+        Padding = UDim.new(0, 5),
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = tabsSidebarHolder,
     })
 
     NewInstance("UIPadding", {
-        PaddingLeft = UDim.new(0, 8),
-        PaddingRight = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
         Parent = tabsSidebarHolder,
     })
 
@@ -3521,16 +3639,12 @@ local function CreateWindow(config)
             tab.Instance.Visible = (name == tabName)
         end
         for name, btn in pairs(tabButtons) do
-            btn.TextColor3 = (name == tabName) and Accent.Value or Color3.fromRGB(200, 200, 200)
+            local active = name == tabName
+            btn.TextColor3 = active and Theme.TextBright or Theme.TextDim
+            btn.BackgroundTransparency = active and (1 - 8 / 255) or 1
         end
         CloseAllOverlays()
     end
-
-    Accent.Changed:Connect(function(color)
-        if selectedTab and tabButtons[selectedTab] then
-            tabButtons[selectedTab].TextColor3 = color
-        end
-    end)
 
     function Window:AddTab(tabName)
         if tabs[tabName] then
@@ -3549,18 +3663,36 @@ local function CreateWindow(config)
         end
 
         local btn = NewInstance("TextButton", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 26),
+            BackgroundColor3 = Theme.TextBright,
+            BackgroundTransparency = isFirst and (1 - 8 / 255) or 1,
+            Size = UDim2.new(1, 0, 0, 32),
             LayoutOrder = index,
             Font = Enum.Font.GothamMedium,
             TextSize = 15,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = tabName,
-            TextColor3 = isFirst and Accent.Value or Color3.fromRGB(200, 200, 200),
+            TextColor3 = isFirst and Theme.TextBright or Theme.TextDim,
             AutoButtonColor = false,
             ZIndex = tabsSidebarHolder.ZIndex + 1,
             Parent = tabsSidebarHolder,
         })
+
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(0, Theme.ElementRounding),
+            Parent = btn,
+        })
+
+        btn.MouseEnter:Connect(function()
+            if selectedTab ~= tabName then
+                TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundTransparency = 1 - 4 / 255, TextColor3 = Theme.Text }):Play()
+            end
+        end)
+
+        btn.MouseLeave:Connect(function()
+            if selectedTab ~= tabName then
+                TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundTransparency = 1, TextColor3 = Theme.TextDim }):Play()
+            end
+        end)
 
         btn.MouseButton1Click:Connect(function()
             SelectTab(tabName)
@@ -3640,34 +3772,29 @@ local function CreateWindow(config)
         Name = "OpenMenuButton",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -10, 0.5, 0),
-        Size = UDim2.fromOffset(62, 62),
-        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.fromOffset(46, 46),
+        BackgroundColor3 = Theme.Popup,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Font = Enum.Font.GothamBold,
-        TextSize = 24,
+        TextSize = 18,
         Text = openButtonText,
-        TextColor3 = Accent.Value,
+        TextColor3 = Theme.Text,
         ZIndex = 100,
         Parent = ScreenGui,
     })
 
     NewInstance("UICorner", {
-        CornerRadius = UDim.new(1, 0),
+        CornerRadius = UDim.new(0, 14),
         Parent = openButton,
     })
 
     local openButtonStroke = NewInstance("UIStroke", {
-        Color = Accent.Value,
-        Thickness = 1.5,
-        Transparency = 0.3,
+        Color = Theme.Border,
+        Thickness = 1,
+        Transparency = 0,
         Parent = openButton,
     })
-
-    Accent.Changed:Connect(function(color)
-        openButton.TextColor3 = color
-        openButtonStroke.Color = color
-    end)
 
     openButton.MouseButton1Click:Connect(function()
         if not openButton:GetAttribute("WasDragged") then
@@ -3760,8 +3887,8 @@ local function CreateWindow(config)
     local notifyHolder = NewInstance("Frame", {
         Name = "NotifyHolder",
         BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 1),
-        Position = UDim2.new(1, -12, 1, -12),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
         Size = UDim2.fromOffset(260, 500),
         ZIndex = 300,
         Parent = ScreenGui,
@@ -3769,8 +3896,8 @@ local function CreateWindow(config)
 
     NewInstance("UIListLayout", {
         Padding = UDim.new(0, 8),
-        VerticalAlignment = Enum.VerticalAlignment.Bottom,
-        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = notifyHolder,
     })
@@ -3803,11 +3930,11 @@ local function CreateWindow(config)
             Name = "FloatingButton",
             Size = UDim2.fromOffset(size, size),
             Position = cfg.Position or UDim2.new(0.5, -size / 2, 0.6, 0),
-            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundColor3 = Theme.Popup,
             BorderSizePixel = 0,
             AutoButtonColor = false,
             Text = cfg.Text or "",
-            TextColor3 = Color3.fromRGB(235, 235, 235),
+            TextColor3 = Theme.TextBright,
             TextScaled = true,
             TextWrapped = true,
             Font = Enum.Font.GothamBold,
@@ -3831,8 +3958,8 @@ local function CreateWindow(config)
 
         local stroke = NewInstance("UIStroke", {
             Thickness = 1.5,
-            Color = Accent.Value,
-            Transparency = 0.35,
+            Color = Theme.Border,
+            Transparency = 0,
             ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
             Parent = btn,
         })
@@ -3880,15 +4007,15 @@ local function CreateWindow(config)
         local function applyVisual()
             if isToggle and state then
                 btn.BackgroundColor3 = Accent.Value
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.TextColor3 = Theme.TextBright
                 stroke.Color = Accent.Value
                 stroke.Transparency = 0
                 if isToggle then btn.Text = cfg.OnText or baseText end
             else
-                btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-                btn.TextColor3 = Color3.fromRGB(235, 235, 235)
-                stroke.Color = Accent.Value
-                stroke.Transparency = 0.35
+                btn.BackgroundColor3 = Theme.Popup
+                btn.TextColor3 = Theme.TextBright
+                stroke.Color = Theme.Border
+                stroke.Transparency = 0
                 if isToggle then btn.Text = cfg.OffText or baseText end
             end
         end
@@ -4083,7 +4210,7 @@ local function CreateWindow(config)
         local duration = cfg.Duration or 4
 
         local card = NewInstance("Frame", {
-            BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+            BackgroundColor3 = Theme.Window,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -4092,18 +4219,23 @@ local function CreateWindow(config)
             Parent = notifyHolder,
         })
 
+        NewInstance("UICorner", {
+            CornerRadius = UDim.new(0, Theme.PopupRounding),
+            Parent = card,
+        })
+
         local cardStroke = NewInstance("UIStroke", {
-            Color = Accent.Value,
+            Color = Theme.Border,
             Thickness = 1,
             Transparency = 1,
             Parent = card,
         })
 
         NewInstance("UIPadding", {
-            PaddingTop = UDim.new(0, 8),
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 10),
+            PaddingTop = UDim.new(0, 15),
+            PaddingBottom = UDim.new(0, 15),
+            PaddingLeft = UDim.new(0, 15),
+            PaddingRight = UDim.new(0, 15),
             Parent = card,
         })
 
@@ -4119,7 +4251,7 @@ local function CreateWindow(config)
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.GothamBold,
             TextSize = 14,
-            TextColor3 = Accent.Value,
+            TextColor3 = Theme.TextBright,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = title,
@@ -4134,7 +4266,7 @@ local function CreateWindow(config)
             Size = UDim2.new(1, 0, 0, 0),
             Font = Enum.Font.Gotham,
             TextSize = 13,
-            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextColor3 = Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
             Text = content,
@@ -4144,7 +4276,7 @@ local function CreateWindow(config)
         })
 
         TweenService:Create(card, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
-        TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 0.2 }):Play()
+        TweenService:Create(cardStroke, TweenInfo.new(0.2), { Transparency = 0 }):Play()
         TweenService:Create(titleLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
         TweenService:Create(bodyLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
 
